@@ -1,0 +1,626 @@
+<!DOCTYPE html><html>
+<body style="text-align:center">
+<input type="button" style="width:140px;float:left" id="computerMove" value="Computer move now" onclick="go()"> 
+<span style="float:left">&nbsp;&nbsp;</span><input type="button" style="width:80px;float:left"  value="undo" onClick="undo()"> &nbsp; Computer plays for black against human:
+
+<input type="checkbox" checked id="computerplaysblack" onchange="testCheckBox()"> <div id="container" style="display:inline-block;margin:0px auto;position:relative;top:60px;width:850px;height:490px">
+<div id="board" style="width:400px;height:440px;float:left;cursor:default;user-select:none;webkit-user-select:none;user-drag:none;webkit-user-drag:none"></div>
+<textarea id="pgn" style="width:400px;height:400px;font-size:12px;float:l eft;resize:none;spellcheck:none"></textarea></div>
+<div style="width:840px">
+
+<div style="height:40px"></div>
+<span style="float:left">&nbsp; half-ply:</span> <input id="ply" style="float:left;width:36px" value="4"> 
+<div style="float:left">  
+  <input type="button"  value="&#8593" style="position:relative;top:-10px" onClick="depth++;document.getElementById('ply').value=depth"><br>
+  <input type="button" value="&#8609" style="position:relative;top:-10px" onClick="depth--;document.getElementById('ply').value=depth">
+</div>
+<span style="float:left;">&nbsp;<span style="font-size:12px"> NBQ first-move reward<br>&nbsp;&nbsp;(proportion of piece value)&nbsp;&nbsp;</div>:</span> <input style="float:left;width:36px" id="firstmove" value=".5">
+<div style="float:left">
+  <input type="button"  value="&#8593" style="position:relative;top:-10px"   onClick="firstMoveReward=firstMoveReward+.1;document.getElementById('firstmove').value=firstMoveReward"><br>
+  <input type="button"  value="&#8609" style="position:relative;top:-10px" onClick="firstMoveReward=firstMoveReward-.1;document.getElementById('firstmove').value=firstMoveReward">
+</div>
+<span style="float:left;">&nbsp; castle reward:</span> <input style="float:left;width:36px" id="castlingreward" value="4">
+<div style="float:left">
+  <input type="button"  value="&#8593" style="position:relative;top:-10px"   onClick="castleReward=castleReward+1;document.getElementById('castlingreward').value=castleReward"><br>
+  <input type="button"  value="&#8609" style="position:relative;top:-10px" onClick="castleReward=castleReward-1;document.getElementById('castlingreward').value=castleReward">
+</div>
+
+<span style="float:left;">&nbsp; pawn advance reward:</span> <input style="float:left;width:36px" id="pawnreward" value=".02">
+<div style="float:left">
+  <input type="button"  value="&#8593" style="position:relative;top:-10px"   onClick="pawnReward+=.002;document.getElementById('pawnreward').value=pawnReward"><br>
+  <input type="button"  value="&#8609" style="position:relative;top:-10px" onClick="pawnReward-=.002;document.getElementById('pawnreward').value=pawnReward">
+</div>
+<span style="float:left;">&nbsp; random reward:</span> <input style="float:left;width:36px" id="random" value=".03">
+<div style="float:left">
+  <input type="button"  value="&#8593" style="position:relative;top:-10px"   onClick="randomReward=.001+randomReward;document.getElementById('random').value=randomReward"><br>
+  <input type="button" value="&#8609" style="position:relative;top:-10px" onClick="randomReward=randomReward-.001;document.getElementById('random').value=randomReward">
+</div>
+</div>
+<div style="height:50px"></div>
+<div id="whosemove" style="font-size:20px;color:#222222;float:left">&nbsp; White to move.</div>
+<div>Capture rewards for RNBQP are 5,3,3,9,1</div>
+</body>
+<script>
+if(typeof(ontouchstart) != "undefined") window.location.href = "chessMobile.html"
+var computerPlaysBlack = true
+var pruning = true
+var gameOver = false
+var pawnReward = 0.02
+var castleReward = 4
+var randomReward = .03
+var firstMoveReward = .5
+var depth = 4
+
+function testCheckBox() {
+  if(document.getElementById("computerplaysblack").checked) {
+    computerPlaysBlack = true
+  } else {
+    computerPlaysBlack = false
+  }
+}
+
+function undo() {
+  if(busy) return;
+  undoOne();
+  if(computerPlaysBlack) undoOne()
+}
+
+function undoOne() {
+  moveList.pop()
+  O = [
+    [
+      [0, 3, 2, 1, 4, 2, 3, 0],
+      [5, 5, 5, 5, 5, 5, 5, 5],
+      [-1, -1, -1, -1, -1, -1, -1, -1],
+      [-1, -1, -1, -1, -1, -1, -1, -1],
+      [-1, -1, -1, -1, -1, -1, -1, -1],
+      [-1, -1, -1, -1, -1, -1, -1, -1],
+      [-1, -1, -1, -1, -1, -1, -1, -1],
+      [-1, -1, -1, -1, -1, -1, -1, -1]
+    ],
+    [
+      [-1, -1, -1, -1, -1, -1, -1, -1],
+      [-1, -1, -1, -1, -1, -1, -1, -1],
+      [-1, -1, -1, -1, -1, -1, -1, -1],
+      [-1, -1, -1, -1, -1, -1, -1, -1],
+      [-1, -1, -1, -1, -1, -1, -1, -1],
+      [-1, -1, -1, -1, -1, -1, -1, -1],
+      [6, 6, 6, 6, 6, 6, 6, 6],
+      [0, 3, 2, 1, 4, 2, 3, 0]
+    ]
+  ]
+  makea()
+  C = 0
+  gameOver = false
+  enPassant = -1
+  castleFlags = [
+    [0, 0, 0, 0, 0, 0, 0, 0],
+    [0, 0, 0, 0, 0, 0, 0, 0]
+  ]
+  pgn =
+    "[White \"Person\"]\n[Black \"Computer\"]\n"
+  index = 0
+  for(var i = 0; i < moveList.length; i++) {
+    var output = findMove(moveList[i][0], moveList[i][1], moveList[i][2], moveList[i][3], moveList[i][4], true)
+    if(C == 0) {
+      index++;
+      pgn += index.toString() + ". " + pgnMove(output) + " "
+    }
+    if(C == 1) {
+      pgn += " " + pgnMove(output) + " "
+    }
+    C = 1 - C
+  }
+  makea()
+  document.getElementById("pgn").value = pgn.replace(/\ +/g, " ")
+  showHTML()
+  baseScore = 0 // We have not bothered to recalculate it
+}
+var moveList = []
+
+function P(C, l, b) {
+  if(l == 0 || gameOver) return [, , , baseScore * (1 - 2 * C)]
+  var m = -Infinity,
+    j, jj, jjj, i, ii, iii, s, r
+  for(i = 0; i < E[C].length; i++) {
+    if(O[C][a[C][i][0]][a[C][i][1]] != E[C][i]) continue // piece i does not exist anymore
+    for(ii = 0; ii < Q[E[C][i]].length; ii++) {
+      iii = 0
+      var notdone = true
+      while(notdone && (iii == 0 || E[C][i] <= 2)) {
+        iii++
+        r = move(C, i, ii, iii)
+        if(r == const_end) break
+        if(r == const_continue) continue
+        if(r[6] != -1) notdone = false
+        s = -P(1 - C, l - 1, -m)[3]
+        if(m < s) {
+          m = s;
+          j = i;
+          jj = ii;
+          jjj = iii
+        }
+        unmove(r)
+        if(m > b && pruning) break
+      }
+    }
+  }
+  return [j, jj, jjj, m]
+}
+
+function check(C) {
+  return (P(1 - C, 1, Infinity)[3] > 5000)
+}
+
+function mate(C) {
+  return (P(C, 2, Infinity)[3] < -5000)
+}
+var sy = [
+  ["&#9820;", "&#9814;"],
+  ["&#9819;", "&#9813;"],
+  ["&#9821;", "&#9815;"],
+  ["&#9822;", "&#9816;"],
+  ["&#9818;", "&#9812;"],
+  ["&#9823;", "&#9817;"],
+  ["&#9823;", "&#9817;"]
+]
+var Z = [5, 9, 3, 3, 10000, 1, 1] //scores of pieces
+var Q = [ // legal moves
+  [
+    [1, 0],
+    [0, 1],
+    [-1, 0],
+    [0, -1],
+    [0, -1]
+  ],
+  [
+    [1, 0],
+    [0, 1],
+    [-1, 0],
+    [0, -1],
+    [1, 1],
+    [-1, 1],
+    [1, -1],
+    [-1, -1, ]
+  ],
+  [
+    [1, 1],
+    [-1, 1],
+    [1, -1],
+    [-1, -1]
+  ],
+  [
+    [1, 2],
+    [2, 1],
+    [-1, 2],
+    [-2, 1],
+    [1, -2],
+    [2, -1],
+    [-1, -2],
+    [-2, -1]
+  ],
+  [
+    [1, 0],
+    [0, 1],
+    [-1, 0],
+    [0, -1],
+    [1, 1],
+    [-1, 1],
+    [1, -1],
+    [-1, -1],
+    [0, 2],
+    [0, -2]
+  ],
+  [
+    [1, 1],
+    [1, 0],
+    [1, -1],
+    [2, 0]
+  ],
+  [
+    [-1, 1],
+    [-1, 0],
+    [-1, -1],
+    [-2, 0]
+  ]
+]
+var O = [
+  [
+    [0, 3, 2, 1, 4, 2, 3, 0],
+    [5, 5, 5, 5, 5, 5, 5, 5],
+    [-1, -1, -1, -1, -1, -1, -1, -1],
+    [-1, -1, -1, -1, -1, -1, -1, -1],
+    [-1, -1, -1, -1, -1, -1, -1, -1],
+    [-1, -1, -1, -1, -1, -1, -1, -1],
+    [-1, -1, -1, -1, -1, -1, -1, -1],
+    [-1, -1, -1, -1, -1, -1, -1, -1]
+  ],
+  [
+    [-1, -1, -1, -1, -1, -1, -1, -1],
+    [-1, -1, -1, -1, -1, -1, -1, -1],
+    [-1, -1, -1, -1, -1, -1, -1, -1],
+    [-1, -1, -1, -1, -1, -1, -1, -1],
+    [-1, -1, -1, -1, -1, -1, -1, -1],
+    [-1, -1, -1, -1, -1, -1, -1, -1],
+    [6, 6, 6, 6, 6, 6, 6, 6],
+    [0, 3, 2, 1, 4, 2, 3, 0]
+  ]
+]
+var a, E
+var baseScore = 0
+var enPassant = -1 // Note: en Passant is not right with respect to unmoving!!!
+var promoted = -1
+var castleFlags = [
+  [0, 0, 0, 0, 0, 0, 0, 0],
+  [0, 0, 0, 0, 0, 0, 0, 0]
+]
+var const_end = 0
+var const_continue = 1
+
+function move(C, i, ii, iii) {
+  var Mx = [],
+    Msave, MscoreChange, Mp, Mq, MA, MB, MoldEnPassant, MoldPromoted, Mcastle, MoldCastleFlag, Mpiece
+  Mpiece = E[C][i]
+  Mx[0] = Q[Mpiece][ii][0]
+  Mx[1] = Q[Mpiece][ii][1] //made these global to save time
+  Msave = -1
+  MscoreChange = Math.random() * randomReward
+  Mp = a[C][i][0]
+  Mq = a[C][i][1]
+  MA = Mp + Mx[0] * iii
+  MB = Mq + Mx[1] * iii
+  if(MA > 7 || MB > 7 || MA < 0 || MB < 0 || O[C][MA][MB] != -1) return const_end
+  if(Mpiece > 4 && (
+      (ii % 2 == 0 && O[1 - C][MA][MB] == -1 && (MB != enPassant || (Mpiece == 5 && MA != 5) || (Mpiece == 6 && MA != 2))) ||
+      (ii % 2 == 1 && O[1 - C][MA][MB] != -1) ||
+      (ii == 3 && (O[1 - C][Mp + Mx[0] / 2][MB] != -1 || O[C][Mp + Mx[0] / 2][MB] != -1 || O[C][MA][MB] != -1 || Mp - 5 * C != 1))
+    )) return const_continue
+  Mcastle = false
+  if(Mpiece == 4 && ii == 8) {
+    if(castleFlags[C][4] != 0 || O[C][C * 7][5] != -1 || O[1 - C][C * 7][5] != -1 || O[C][C * 7][6] != -1 || O[1 - C][C * 7][6] != -1 || castleFlags[C][7] != 0) {
+      return const_continue
+    } else {
+      O[C][C * 7][5] = 0;
+      O[C][C * 7][7] = -1;
+      if(C == 0) {
+        a[0][rowOrders[0][0] - 1] = [0, 5]
+      } else {
+        a[1][E[1].length - 1] = [7, 5]
+      };
+      Mcastle = true
+    }
+  }
+  if(Mpiece == 4 && ii == 9) {
+    if(castleFlags[C][4] != 0 || O[C][C * 7][1] != -1 || O[1 - C][C * 7][1] != -1 || O[C][C * 7][2] != -1 || O[1 - C][C * 7][2] != -1 || O[C][C * 7][3] != -1 || O[1 - C][C * 7][3] != -1 || castleFlags[C][0] != 0) {
+      return const_continue
+    } else {
+      O[C][C * 7][0] = -1;
+      O[C][C * 7][3] = 0;
+      if(C == 0) {
+        a[0][0] = [0, 3]
+      } else {
+        a[1][E[1].length - rowOrders[1][7]] = [7, 3]
+      };
+      Mcastle = true
+    }
+  }
+  a[C][i][0] = MA
+  a[C][i][1] = MB
+  O[C][Mp][Mq] = -1
+  Msave = O[1 - C][MA][MB]
+  MoldPromoted = promoted
+  promoted = -1
+  if(Mpiece > 4 && (MA == 0 || MA == 7)) {
+    MscoreChange += Z[1] - Z[6]
+    promoted = MB
+    E[C][i] = 1
+    Mpiece = E[C][i]
+  }
+  O[C][MA][MB] = Mpiece
+  if(Msave != -1) {
+    MscoreChange += Z[Msave]
+    O[1 - C][MA][MB] = -1
+    if(Msave == 4) gameOver = true
+  }
+  if(MA == 5 && MB == enPassant && Mpiece == 5) {
+    O[1 - C][4][MB] = -1;
+    MscoreChange += Z[6]
+  }
+  if(MA == 2 && MB == enPassant && Mpiece == 6) {
+    O[1 - C][3][MB] = -1;
+    MscoreChange += Z[5]
+  }
+  if(Mpiece > 4) MscoreChange = MscoreChange + pawnReward * Math.abs(Mx[0])
+  MoldEnPassant = enPassant
+  enPassant = -1
+  if(Mpiece == 5 && Mx[0] == 2 && Mp == 1) enPassant = MB
+  if(Mpiece == 6 && Mx[0] == -2 && Mp == 6) enPassant = MB
+  if(Mpiece == 0 || Mpiece == 4) {
+    MoldCastleFlag = castleFlags[C][Mq];
+    castleFlags[C][Mq] = 1
+  }
+  if(Mcastle) MscoreChange += castleReward
+  MscoreChange += (19 - O[C][7 * C][1] - O[C][7 * C][2] - O[C][7 * C][3] - O[C][7 * C][5] - O[C][7 * C][6]) / 19 * firstMoveReward
+  baseScore = baseScore + MscoreChange * (1 - 2 * C)
+  return [MscoreChange, i, Mp, Mq, MA, MB, Msave, C, MoldPromoted, MoldEnPassant, Mcastle, MoldCastleFlag]
+}
+
+function unmove(r) {
+  O[r[7]][r[4]][r[5]] = -1
+  if(promoted == r[5]) {
+    if(r[4] == 7) E[r[7]][r[1]] = 5;
+    if(r[4] == 0) E[r[7]][r[5]] = 6
+  }
+  var piece = E[r[7]][r[1]]
+  if(piece == 4 || piece == 0) castleFlags[r[7]][r[3]] = r[11]
+  O[r[7]][r[2]][r[3]] = piece
+  a[r[7]][r[1]] = [r[2], r[3]]
+  if(r[6] == 4) gameOver = false
+  O[1 - r[7]][r[4]][r[5]] = r[6]
+  if(r[9] == r[5]) {
+    if(piece == 5 && r[4] == 5) {
+      O[1 - r[7]][r[4] - 1][r[5]] = 6
+    }
+    if(piece == 6 && r[4] == 2) {
+      O[1 - r[7]][r[4] + 1][r[5]] = 5
+    }
+  }
+  if(r[10]) {
+    if(r[5] - r[3] == 2) {
+      O[r[7]][r[7] * 7][5] = -1;
+      O[r[7]][r[7] * 7][6] = -1;
+      O[r[7]][r[7] * 7][7] = 0
+      if(r[7] == 0) {
+        a[0][rowOrders[0][0] - 1] = [0, 7]
+      } else {
+        a[1][E[1].length - 1] = [7, 7]
+      }
+    }
+    if(r[5] - r[3] == -2) {
+      O[r[7]][r[7] * 7][0] = 0;
+      O[r[7]][r[7] * 7][2] = -1;
+      O[r[7]][r[7] * 7][3] = -1
+      if(r[7] == 0) {
+        a[0][0] = [0, 0]
+      } else {
+        a[1][E[1].length - rowOrders[1][7]] = [7, 0]
+      }
+    }
+  }
+  enPassant = r[9]
+  promoted = r[8]
+  baseScore = baseScore - r[0] * (1 - 2 * r[7])
+}
+
+function findMove(C, p, q, A, B, silent) {
+  var piece = O[C][p][q]
+  for(var i = 0; i < E[C].length; i++) {
+    if(E[C][i] != piece || a[C][i][0] != p || a[C][i][1] != q) continue
+    for(var ii = 0; ii < Q[piece].length; ii++) {
+      for(var iii = 1; iii <= 7; iii++) {
+        if(iii > 1 && piece > 2) break
+        if(p - 0 + Q[piece][ii][0] * iii == A && q - 0 + Q[piece][ii][1] * iii == B) {
+          var r = move(C, i, ii, iii);
+          if(typeof(r) != "object") return false;
+          C = 1 - C;
+          if(C == 0) document.getElementById("whosemove").innerHTML = "&nbsp; White to move"
+          if(C == 1) document.getElementById("whosemove").innerHTML = "&nbsp; Black to move"
+          if(!silent) moveList.push([r[7], r[2], r[3], r[4], r[5]])
+          return r
+        }
+      }
+    }
+  }
+  return false
+}
+
+function pgnMove(w) {
+  if(typeof(w) == "string") return w
+  if(E[w[7]][w[1]] == 4 && (w[5] - w[3]) == 2 && !check(1 - C)) return " O-O "
+  if(E[w[7]][w[1]] == 4 && (w[5] - w[3]) == -2 && !check(1 - C)) return " O-O-O "
+  var ch = ""
+  if(w[6] != -1 || (w[9] == w[5] && ((E[w[7]][w[1]] == 5 && w[4] == 5) || E[w[7]][w[1]] == 6 && w[4] == 2))) ch = "x"
+  var result = "RQBNK  ".charAt(E[w[7]][w[1]]) + "abcdefgh".charAt(w[3]) + (w[2] + 1).toString() + ch + "abcdefgh".charAt(w[5]) + (w[4] + 1).toString()
+  if(promoted != -1) result = result.replace(/^Q/, "") + "Q"
+  if(check(C)) {
+    if(depth < 2) gameOver = true;
+    setTimeout(undoOne, 500);
+    return ""
+  }
+  if(check(1 - C)) {
+    if(mate(1 - C)) {
+      result += "#";
+      gameOver = true
+    } else {
+      result += "+"
+    }
+  }
+  result += " "
+  return result
+}
+var C = 0
+var pgn =
+  "[White \"Person\"]\n[Black \"Computer\"]\n"
+var index = 0
+var busy = false
+
+function go() {
+  if(gameOver) return;
+  if(computerPlaysBlack && C == 1 && check(0)) return;
+  busy = true;
+  setTimeout(go2, 10)
+}
+
+function go2() {
+  makea()
+  var aa = P(C, depth, Infinity)
+  var output = move(C, aa[0], aa[1], aa[2])
+  animate(output)
+  if(C == 0) {
+    index++;
+    pgn += index.toString() + ". " + pgnMove(output) + " "
+  }
+  if(C == 1) {
+    pgn += " " + pgnMove(output) + " "
+  }
+  document.getElementById("pgn").value = pgn.replace(/\ +/g, " ")
+  C = 1 - C
+  if(C == 0) document.getElementById("whosemove").innerHTML = "&nbsp; White to move"
+  if(C == 1) document.getElementById("whosemove").innerHTML = "&nbsp; Black to move"
+  moveList.push([output[7], output[2], output[3], output[4], output[5]])
+}
+
+function animate(r) {
+  var p = parseInt(r[2])
+  var q = parseInt(r[3])
+  var A = parseInt(r[4])
+  var B = parseInt(r[5])
+  var D = document.getElementById("board").getElementsByTagName("div")
+  for(var i = 0; i < D.length; i++) {
+    var a = Math.floor(D[i].offsetLeft / squareWidth + .5)
+    var b = Math.floor(D[i].offsetTop / squareWidth + .5)
+    if(p == 7 - b && q == a) {
+      D[i].id = "t";
+      D[i].style.zIndex = 100;
+      D[i].style.borderStyle = "none";
+      D[i].style.background = ""
+    } else {
+      D[i].id = "u"
+    }
+  }
+  for(var i = 0; i < 50; i++) {
+    setTimeout(
+      "document.getElementById(\"t\").style.left=(" + squareWidth.toString() + "*(" + q.toString() + "+" + i.toString() + "/50*" + (B - q).toString() + ")).toString()+\"px\";" +
+      "document.getElementById(\"t\").style.top =(" + squareWidth.toString() + "*(" + (7 - p).toString() + "+" + i.toString() + "/50*" + (p - A).toString() + ")).toString()+\"px\"", 10 * i)
+  }
+  setTimeout(showHTML, 500)
+}
+var squareWidth = 50
+
+function showHTML() {
+  while(document.getElementById("board").firstChild) document.getElementById("board").removeChild(document.getElementById("board").firstChild)
+  for(var i = 0; i <= 7; i++) {
+    for(var j = 0; j <= 7; j++) {
+      var bg = "#EEEEEE"
+      if((i + j) % 2 == 0) bg = "#BBEEFF"
+      var square = document.createElement("div")
+      square.style.background = bg
+      square.style.width = (squareWidth).toString() + "px"
+      square.style.height = square.style.width
+      square.style.borderStyle = "solid"
+      square.style.borderWidth = "1px"
+      square.style.lineHeight = "58px"
+      square.style.position = "absolute"
+      square.style.userSelect = "none"
+      square.style.userDrag = "none"
+      square.style.webkitUserDrag = "none"
+      square.style.webkitUserSelect = "none"
+      square.style.fontSize = "54px"
+      square.style.left = (squareWidth * i).toString() + "px"
+      square.style.top = (squareWidth * (7 - j)).toString() + "px"
+      var w = O[0][j][i]
+      var b = O[1][j][i]
+      if(b != -1) {
+        square.onmousedown = function() {
+          if(busy) return
+          pickupC = 1
+          dragged = this
+          dragged.style.borderStyle = "none"
+          dragged.style.background = ""
+          dragged.style.zIndex = 100
+          pickupi = 7 - Math.floor(this.offsetTop / squareWidth)
+          pickupj = Math.floor(this.offsetLeft / squareWidth)
+          return false
+        }
+      }
+      if(w != -1) {
+        square.onmousedown = function() {
+          if(busy) return
+          pickupC = 0
+          dragged = this
+          dragged.style.borderStyle = "none"
+          dragged.style.background = ""
+          dragged.style.zIndex = 100
+          pickupi = 7 - Math.floor(this.offsetTop / squareWidth)
+          pickupj = Math.floor(this.offsetLeft / squareWidth)
+          return false
+        }
+      }
+      square.innerHTML = "&nbsp;"
+      if(w != -1) {
+        square.innerHTML = sy[w][1]
+      }
+      if(b != -1) {
+        square.innerHTML = sy[b][0]
+      }
+      document.getElementById("board").appendChild(square)
+    }
+  }
+  busy = false
+}
+var pickupi, pickupj, pickupC
+document.getElementById("board").onmouseup = function(e) {
+  if(!dragged) return
+  if(pickupC != C || gameOver) {
+    dragged = false;
+    showHTML();
+    return
+  }
+  var A = 7 - Math.floor(dragged.offsetTop / squareWidth + .5)
+  var B = Math.floor(dragged.offsetLeft / squareWidth + .5)
+  var r = findMove(C, pickupi, pickupj, A, B, false)
+  if(!r) {
+    dragged = undefined;
+    showHTML();
+    return
+  }
+  if(C == 0) {
+    index++;
+    pgn += index.toString() + ". "
+  }
+  pgn += pgnMove(r)
+  makea();
+  showHTML()
+  document.getElementById("pgn").value = pgn.replace(/\ +/g, " ")
+  dragged = undefined
+  C = 1 - C
+  if(computerPlaysBlack && C == 1) setTimeout(go, 100)
+}
+var rowOrders = [
+  [8, 8, 8, 8, 8, 8, 8, 8],
+  [8, 8, 8, 8, 8, 8, 8, 8]
+]
+
+function makea() {
+  a = [];
+  E = []
+  for(var C = 0; C < 2; C++) {
+    a[C] = [];
+    E[C] = []
+    for(var i = 0; i < 8; i++) {
+      rowOrders[C][i] = 0
+      for(var j = 0; j < 8; j++) {
+        var o = O[C][i][j]
+        if(o != -1) {
+          a[C].push([i, j])
+          E[C].push(o)
+          rowOrders[C][i]++
+        }
+      }
+    }
+  }
+}
+makea()
+showHTML()
+var dragged
+var mouse = []
+document.body.onmousemove = function(e) {
+  if(dragged) {
+    dragged.style.left = (e.clientX - squareWidth / 2 - document.getElementById("container").offsetLeft).toString() + "px";
+    dragged.style.top = (e.clientY - squareWidth / 2 - document.getElementById("container").offsetTop).toString() + "px"
+  }
+}
+document.getElementById("pgn").value = pgn.replace(/\ +/g, " ")
+makea()
+</script>
+</html>
