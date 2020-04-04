@@ -329,12 +329,9 @@ function pgnMove(w) {
   if(w[6] != -1 || (w[9] == w[5] && ((E[w[7]][w[1]] == 5 && w[4] == 5) || E[w[7]][w[1]] == 6 && w[4] == 2))) ch = "x"
   result += "RQBNK  ".charAt(E[w[7]][w[1]]) + "abcdefgh".charAt(w[3]) + (w[2] + 1).toString() + ch + "abcdefgh".charAt(w[5]) + (w[4] + 1).toString()
   if(promoted != -1) result = result.replace(/^Q/, "") + "Q"
-  if(check(C)&&C==0) {
-    unmove(w);makea();showHTML()
-    index--;
-    C = 1 - C;
+  if(check(C)&&C==0) {unmove(w);showHTML();index--;C = 1 - C  //replaces undoOne for mobile version w/o an undo
     return ""
-  }                   // only applies to the human player
+  }                   
   if(check(1 - C)) {
     if(mate(1 - C)) {
       result += "#";
@@ -364,6 +361,11 @@ function go2() {
   makea()
   var aa = P(C, depth, Infinity)
   var output = move(C, aa[0], aa[1], aa[2])
+  if(check(C)) {gameOver=true;pgn+=" "+(C).toString()+"-"+(1-C).toString()+" ";
+   document.getElementById("pgn").value=pgn
+   document.getElementById("pgn").scrollTop=document.getElementById("pgn").scrollHeight
+   return } //minimax recommends move into check, player C resigns
+
   animate(output)
   pgn += pgnMove(output)
   document.getElementById("pgn").value = pgn.replace(/\ +/g, " ")
@@ -467,6 +469,7 @@ document.getElementById("board").ontouchend = document.getElementById("board").o
     showHTML();
     return
   }
+  makea()
   var A = 7 - Math.floor(dragged.offsetTop / squareWidth + .5)
   var B = Math.floor(dragged.offsetLeft / squareWidth + .5)
   var r = findMove(C, pickupi, pickupj, A, B)
@@ -478,7 +481,6 @@ document.getElementById("board").ontouchend = document.getElementById("board").o
   pgn += pgnMove(r)
   document.getElementById("pgn").value = pgn.replace(/\ +/g, " ")
   document.getElementById("pgn").scrollTop=document.getElementById("pgn").scrollHeight
-  makea();
   showHTML()
   dragged = undefined
   C = 1 - C
@@ -509,8 +511,7 @@ function makea() {
     }
   }
 }
-makea()
-showHTML()
+
 var dragged
 var mouse = []
 document.getElementById("board").onmousemove = function(e) {
@@ -531,5 +532,6 @@ document.getElementById("board").ontouchmove = function(e) {
 }
 document.getElementById("pgn").value = pgn.replace(/\ +/g, " ")
 makea()
+showHTML()
 </script> 
 </html>
