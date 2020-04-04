@@ -111,7 +111,6 @@ function undoOne() {
     }
     C = 1 - C
   }
-  makea()
   document.getElementById("pgn").value = pgn.replace(/\ +/g, " ")
   showHTML()
   baseScore = 0 // We have not bothered to recalculate it
@@ -258,6 +257,7 @@ var const_end = 0
 var const_continue = 1
 
 function move(C, i, ii, iii) {
+  if(gameOver)return const_end
   var Mx = [],
     Msave, MscoreChange, Mp, Mq, MA, MB, MoldEnPassant, MoldPromoted, Mcastle, MoldCastleFlag, Mpiece
   Mpiece = E[C][i]
@@ -438,6 +438,9 @@ function pgnMove(w) {
   result += " "
   return result
 }
+
+
+
 var C = 0
 var pgn =
   "[White \"Person\"]\n[Black \"Computer\"]\n"
@@ -446,7 +449,6 @@ var busy = false
 
 function go() {
   if(gameOver) return;
-  if(computerPlaysBlack && C == 1 && check(0)) return;
   busy = true;
   setTimeout(go2, 10)
 }
@@ -455,6 +457,10 @@ function go2() {
   makea()
   var aa = P(C, depth, Infinity)
   var output = move(C, aa[0], aa[1], aa[2])
+if(check(C)) {gameOver=true;pgn+=" "+(C).toString()+"-"+(1-C).toString()+" ";
+document.getElementById("pgn").value=pgn
+document.getElementById("pgn").scrollTop=document.getElementById("pgn").scrollHeight
+return } //minimax recommends move into check, player C resigns
   animate(output)
   if(C == 0) {
     index++;
@@ -566,6 +572,7 @@ document.getElementById("board").onmouseup = function(e) {
     showHTML();
     return
   }
+  makea()
   var A = 7 - Math.floor(dragged.offsetTop / squareWidth + .5)
   var B = Math.floor(dragged.offsetLeft / squareWidth + .5)
   var r = findMove(C, pickupi, pickupj, A, B, false)
@@ -579,7 +586,6 @@ document.getElementById("board").onmouseup = function(e) {
     pgn += index.toString() + ". "
   }
   pgn += pgnMove(r)
-  makea();
   showHTML()
   document.getElementById("pgn").value = pgn.replace(/\ +/g, " ")
   dragged = undefined
@@ -610,8 +616,7 @@ function makea() {
     }
   }
 }
-makea()
-showHTML()
+
 var dragged
 var mouse = []
 document.body.onmousemove = function(e) {
@@ -622,5 +627,6 @@ document.body.onmousemove = function(e) {
 }
 document.getElementById("pgn").value = pgn.replace(/\ +/g, " ")
 makea()
+showHTML()
 </script>
 </html>
