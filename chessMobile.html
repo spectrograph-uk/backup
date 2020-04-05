@@ -13,7 +13,7 @@ var squareWidth = ww / 8
 document.getElementById("board").style.width = ww.toString() + "px"
 document.getElementById("board").style.height = ww.toString() + "px"
 document.getElementById("pgn").style.width = ww.toString() + "px"
-document.getElementById("pgn").style.height = (hh - ww).toString() + "px"
+document.getElementById("pgn").style.height = (hh - ww-20).toString() + "px"
 document.getElementById("pgn").style.top = (2 + ww).toString() + "px"
 document.getElementById("pgn").style.fontSize = (ww / 20).toString() + "px"
 var computerPlaysBlack = true
@@ -55,12 +55,12 @@ function P(C, l, b) {
   return [j, jj, jjj, m]
 }
 
-function check(C) {
-  return (P(1 - C, 1, Infinity)[3] > 5000)
+function check(C) {var enPassantSave=enPassant; enPassant=-1;
+  var t=(P(1 - C, 1, Infinity)[3] > 5000);enPassant=enPassantSave;return t
 }
 
-function mate(C) {
-  return (P(C, 2, Infinity)[3] < -5000)
+function mate(C) {var enPassantSave=enPassant; enPassant=-1;
+  var t=(P(C, 2, Infinity)[3] < -5000);enPassant=enPassantSave;return t
 }
 var sy = [
   ["&#9820;", "&#9814;"],
@@ -169,7 +169,7 @@ function move(C, i, ii, iii) {
     Msave, MscoreChange, Mp, Mq, MA, MB, MoldEnPassant, MoldPromoted, Mcastle, MoldCastleFlag, Mpiece
   Mpiece = E[C][i]
   Mx[0] = Q[Mpiece][ii][0]
-  Mx[1] = Q[Mpiece][ii][1] //made these global to save time
+  Mx[1] = Q[Mpiece][ii][1] 
   Msave = -1
   MscoreChange = Math.random() * randomReward
   Mp = a[C][i][0]
@@ -240,6 +240,7 @@ function move(C, i, ii, iii) {
   if(Mpiece > 4) MscoreChange = MscoreChange + pawnReward * Math.abs(Mx[0])
   MoldEnPassant = enPassant
   enPassant = -1
+  MoldCastleFlag=0
   if(Mpiece == 5 && Mx[0] == 2 && Mp == 1) enPassant = MB
   if(Mpiece == 6 && Mx[0] == -2 && Mp == 6) enPassant = MB
   if(Mpiece == 0 || Mpiece == 4) {
@@ -256,7 +257,7 @@ function unmove(r) {
   O[r[7]][r[4]][r[5]] = -1
   if(promoted == r[5]) {
     if(r[4] == 7) E[r[7]][r[1]] = 5;
-    if(r[4] == 0) E[r[7]][r[5]] = 6
+    if(r[4] == 0) E[r[7]][r[1]] = 6
   }
   var piece = E[r[7]][r[1]]
   if(piece == 4 || piece == 0) castleFlags[r[7]][r[3]] = r[11]
@@ -361,10 +362,10 @@ function go2() {
   makea()
   var aa = P(C, depth, Infinity)
   var output = move(C, aa[0], aa[1], aa[2])
-  if(check(C)) {gameOver=true;pgn+=" "+(C).toString()+"-"+(1-C).toString()+" ";
-   document.getElementById("pgn").value=pgn
-   document.getElementById("pgn").scrollTop=document.getElementById("pgn").scrollHeight
-   return } //minimax recommends move into check, player C resigns
+if(check(C)) {gameOver=true;pgn+=" "+(C).toString()+"-"+(1-C).toString()+" ";
+document.getElementById("pgn").value=pgn
+document.getElementById("pgn").scrollTop=document.getElementById("pgn").scrollHeight
+return } //minimax recommends move into check, player C resigns
 
   animate(output)
   pgn += pgnMove(output)
