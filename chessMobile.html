@@ -626,7 +626,6 @@ loadObject()
       [0, 3, 2, 1, 4, 2, 3, 0]
     ]
   ]
-  makea()
   C = 0
   gameOver = false
   enPassant = -1
@@ -639,6 +638,7 @@ loadObject()
   index = 0
   var returnState=true
   for(var i = 0; i < moveList.length; i++) {
+makea()
 var x=getECO(moveList[i])
 if(!x){returnState=false}
     var output = findMove(moveList[i][0], moveList[i][1], moveList[i][2], moveList[i][3], moveList[i][4], true)
