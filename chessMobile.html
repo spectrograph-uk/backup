@@ -20,11 +20,11 @@ var computerPlaysBlack = true
 var pruning = true
 var gameOver = false
 var pawnReward = .02
+var stalemateReward = -0.1
 var castleReward = 4
 var randomReward = .03
-var firstMoveReward = .5
+var firstMoveReward = .1
 var depth = 4
-
 
 function P(C, l, b) {
   if(l == 0 || gameOver) return [, , , baseScore * (1 - 2 * C)]
@@ -53,18 +53,32 @@ function P(C, l, b) {
       }
     }
   }
+  if(l == depth - 1) m = stalemateMod(m)
   return [j, jj, jjj, m]
 }
-
 var moveList = []
 
-function check(C) {var enPassantSave=enPassant; enPassant=-1;
-  var t=(P(1 - C, 1, Infinity)[3] > 5000);enPassant=enPassantSave;return t
+function stalemateMod(m) {
+  if(depth >= 4 && m < -5000 && mate(1 - C) && !check(1 - C)) return Math.floor(m * stalemateReward)
+  return m
 }
 
-function mate(C) {var enPassantSave=enPassant; enPassant=-1;
-  var t=(P(C, 2, Infinity)[3] < -5000);enPassant=enPassantSave;return t
+function check(C) {
+  var enPassantSave = enPassant;
+  enPassant = -1;
+  var t = (P(1 - C, 1, Infinity)[3] > 5000);
+  enPassant = enPassantSave;
+  return t
 }
+
+function mate(C) {
+  var enPassantSave = enPassant;
+  enPassant = -1;
+  var t = (P(C, 2, Infinity)[3] < -5000);
+  enPassant = enPassantSave;
+  return t
+}
+
 var sy = [
   ["&#9820;", "&#9814;"],
   ["&#9819;", "&#9813;"],
@@ -168,9 +182,9 @@ var const_end = 0
 var const_continue = 1
 
 function move(C, i, ii, iii) {
-  if(gameOver)return const_end
+  if(gameOver) return const_end
   var Mx = [],
-    Msave, MscoreChange, Mp, Mq, MA, MB, MoldEnPassant, MoldPromoted, Mcastle, MoldCastleFlag, Mpiece
+    Msave, MscoreChange, Mp, Mq, MA, MB, MoldEnPassant, MoldPromoted, Mcastle, MoldCastleFlag, Mpiece, MoldCastleFlagB
   Mpiece = E[C][i]
   Mx[0] = Q[Mpiece][ii][0]
   Mx[1] = Q[Mpiece][ii][1] //made these global to save time
@@ -190,7 +204,8 @@ function move(C, i, ii, iii) {
   if(Mpiece == 4 && ii == 8) {
     if(castleFlags[C][4] != 0 || O[C][C * 7][5] != -1 || O[1 - C][C * 7][5] != -1 || O[C][C * 7][6] != -1 || O[1 - C][C * 7][6] != -1 || castleFlags[C][7] != 0) {
       return const_continue
-    } else {if(castleOutOfCheck(C,ii))return const_continue
+    } else {
+      if(castleOutOfCheck(C, ii)) return const_continue
       O[C][C * 7][5] = 0;
       O[C][C * 7][7] = -1;
       if(C == 0) {
@@ -204,7 +219,8 @@ function move(C, i, ii, iii) {
   if(Mpiece == 4 && ii == 9) {
     if(castleFlags[C][4] != 0 || O[C][C * 7][1] != -1 || O[1 - C][C * 7][1] != -1 || O[C][C * 7][2] != -1 || O[1 - C][C * 7][2] != -1 || O[C][C * 7][3] != -1 || O[1 - C][C * 7][3] != -1 || castleFlags[C][0] != 0) {
       return const_continue
-    } else {if(castleOutOfCheck(C,ii))return const_continue
+    } else {
+      if(castleOutOfCheck(C, ii)) return const_continue
       O[C][C * 7][0] = -1;
       O[C][C * 7][3] = 0;
       if(C == 0) {
@@ -218,6 +234,7 @@ function move(C, i, ii, iii) {
   a[C][i][0] = MA
   a[C][i][1] = MB
   O[C][Mp][Mq] = -1
+  if(Mpiece > 0 && Mpiece < 4 && (Mp == C * 7 || MA == C * 7)) MscoreChange += firstMoveReward * Z[Mpiece] * (MA - Mp) * (1 - 2 * C)
   Msave = O[1 - C][MA][MB]
   MoldPromoted = promoted
   promoted = -1
@@ -227,10 +244,12 @@ function move(C, i, ii, iii) {
     E[C][i] = 1
     Mpiece = E[C][i]
   }
+  MoldCastleFlagB = castleFlags[1 - C][MB] //	quicker to set conditionally only?
   O[C][MA][MB] = Mpiece
   if(Msave != -1) {
     MscoreChange += Z[Msave]
     O[1 - C][MA][MB] = -1
+    if(MA == 7 * (1 - C)) castleFlags[1 - C][MB] = 1
     if(Msave == 4) gameOver = true
   }
   if(MA == 5 && MB == enPassant && Mpiece == 5) {
@@ -244,17 +263,17 @@ function move(C, i, ii, iii) {
   if(Mpiece > 4) MscoreChange = MscoreChange + pawnReward * Math.abs(Mx[0])
   MoldEnPassant = enPassant
   enPassant = -1
-  MoldCastleFlag=0
+  MoldCastleFlag = castleFlags[C][Mq] // was prev set to 0, can be undefined if not used?
   if(Mpiece == 5 && Mx[0] == 2 && Mp == 1) enPassant = MB
   if(Mpiece == 6 && Mx[0] == -2 && Mp == 6) enPassant = MB
   if(Mpiece == 0 || Mpiece == 4) {
-    MoldCastleFlag = castleFlags[C][Mq];
+    //   MoldCastleFlag = castleFlags[C][Mq];
     castleFlags[C][Mq] = 1
   }
   if(Mcastle) MscoreChange += castleReward
-  MscoreChange += (19 - O[C][7 * C][1] - O[C][7 * C][2] - O[C][7 * C][3] - O[C][7 * C][5] - O[C][7 * C][6]) / 19 * firstMoveReward
+  //MscoreChange += (19 - O[C][7 * C][1] - O[C][7 * C][2] - O[C][7 * C][3] - O[C][7 * C][5] - O[C][7 * C][6]) / 19 * firstMoveReward
   baseScore = baseScore + MscoreChange * (1 - 2 * C)
-  return [MscoreChange, i, Mp, Mq, MA, MB, Msave, C, MoldPromoted, MoldEnPassant, Mcastle, MoldCastleFlag]
+  return [MscoreChange, i, Mp, Mq, MA, MB, Msave, C, MoldPromoted, MoldEnPassant, Mcastle, MoldCastleFlag, MoldCastleFlagB]
 }
 
 function unmove(r) {
@@ -264,7 +283,8 @@ function unmove(r) {
     if(r[4] == 0) E[r[7]][r[1]] = 6
   }
   var piece = E[r[7]][r[1]]
-  if(piece == 4 || piece == 0) castleFlags[r[7]][r[3]] = r[11]
+  castleFlags[r[7]][r[3]] = r[11] //quicker not to check the condition?
+  castleFlags[1 - r[7]][r[5]] = r[12] //this is reset unconditionally
   O[r[7]][r[2]][r[3]] = piece
   a[r[7]][r[1]] = [r[2], r[3]]
   if(r[6] == 4) gameOver = false
@@ -311,100 +331,101 @@ function findMove(C, p, q, A, B, silent) {
     for(var ii = 0; ii < Q[piece].length; ii++) {
       for(var iii = 1; iii <= 7; iii++) {
         if(iii > 1 && piece > 2) break
-        var Atest=p+Q[piece][ii][0]*iii
-        var Btest=q+Q[piece][ii][1]*iii
-        if(Atest>7||Atest<0||Btest>7||Btest<0)break
-        if(O[C][Atest][Btest]!=-1)break
+        var Atest = p + Q[piece][ii][0] * iii
+        var Btest = q + Q[piece][ii][1] * iii
+        if(Atest > 7 || Atest < 0 || Btest > 7 || Btest < 0) break
+        if(O[C][Atest][Btest] != -1) break
         if(Atest == A && Btest == B) {
           var r = move(C, i, ii, iii);
           if(typeof(r) != "object") return false;
           C = 1 - C;
-          if(!silent)moveList.push([r[7], r[2], r[3], r[4], r[5]])
+          if(!silent) moveList.push([r[7], r[2], r[3], r[4], r[5]])
           return r
         }
-        if(O[1-C][Atest][Btest]!=-1)break
+        if(O[1 - C][Atest][Btest] != -1) break
       }
     }
   }
- 
   return false
 }
-
-
-var cancelNextMove=false
+var cancelNextMove = false
 
 function pgnMove(w) {
   if(typeof(w) == "string") return w
-  var result=""
-  if(C==0){index++;result+=index.toString()+". "}
+  var result = ""
+  if(C == 0) {
+    index++;
+    result += index.toString() + ". "
+  }
   if(E[w[7]][w[1]] == 4 && (w[5] - w[3]) == 2 && !check(1 - C)) return " O-O "
   if(E[w[7]][w[1]] == 4 && (w[5] - w[3]) == -2 && !check(1 - C)) return " O-O-O "
   var ch = ""
   if(w[6] != -1 || (w[9] == w[5] && ((E[w[7]][w[1]] == 5 && w[4] == 5) || E[w[7]][w[1]] == 6 && w[4] == 2))) ch = "x"
-  result+= "RQBNK  ".charAt(E[w[7]][w[1]]) + "abcdefgh".charAt(w[3]) + (w[2] + 1).toString() + ch + "abcdefgh".charAt(w[5]) + (w[4] + 1).toString()
+  result += "RQBNK  ".charAt(E[w[7]][w[1]]) + "abcdefgh".charAt(w[3]) + (w[2] + 1).toString() + ch + "abcdefgh".charAt(w[5]) + (w[4] + 1).toString()
   if(promoted != -1) result = result.replace(/^Q/, "") + "Q"
-  if(check(C)&&C==0) {unmove(w);showHTML();index--;C = 1 - C;return ""}
-      if(mate(1 - C)) {
-    if(check(1 - C)) {result+="# "+(1-C).toString()+"-"+C.toString()}else{result+=" {stalemate} 1/2-1/2"}
-      gameOver = true
+  if(check(C) && C == 0) {
+    unmove(w);
+    showHTML();
+    index--;
+    C = 1 - C;
+    return ""
+  }
+  if(mate(1 - C)) {
+    if(check(1 - C)) {
+      result += "# " + (1 - C).toString() + "-" + C.toString()
     } else {
-      if(check(1-C))result += "+"
+      result += " {stalemate} 1/2-1/2"
+    }
+    gameOver = true
+  } else {
+    if(check(1 - C)) result += "+"
   }
   result += " "
   return result
 }
 
-
-
-function castleOutOfCheck(C,pp){
-var start=4
-if(pp==9)start=2
-for(var j=0;j<3;j++){
-for(var i=0;i<E[1-C].length;i++){
-var piece=E[1-C][i]
-var p=a[1-C][i][0]
-var q=a[1-C][i][1]
-if(O[1-C][p][q]==-1)continue
-for(var ii=0;ii<Q[piece].length;ii++){
-if(piece==4)continue
-if(piece>4&&(ii<4||ii>7))continue
-var x0=Q[piece][ii][0]
-var x1=Q[piece][ii][1]
-for(var iii=1;iii<=7;iii++){
-if(iii>1&&piece>2)continue
-var A=p+iii*x0
-var B=q+iii*x1
-if(A<0||A>7||B<0||B>7||(  (A!=C*7||B!=(j+start))&&(O[1-C][A][B]!=-1||O[C][A][B]!=-1)      ))break
-if(A==C*7&&B==j+start)return true
-}}}}
-return false
+function castleOutOfCheck(C, pp) {
+  var start = 4
+  if(pp == 9) start = 2
+  for(var j = 0; j < 3; j++) {
+    for(var i = 0; i < E[1 - C].length; i++) {
+      var piece = E[1 - C][i]
+      var p = a[1 - C][i][0]
+      var q = a[1 - C][i][1]
+      if(O[1 - C][p][q] == -1) continue
+      for(var ii = 0; ii < Q[piece].length; ii++) {
+        if(piece == 4) continue
+        if(piece > 4 && (ii < 4 || ii > 7)) continue
+        var x0 = Q[piece][ii][0]
+        var x1 = Q[piece][ii][1]
+        for(var iii = 1; iii <= 7; iii++) {
+          if(iii > 1 && piece > 2) continue
+          var A = p + iii * x0
+          var B = q + iii * x1
+          if(A < 0 || A > 7 || B < 0 || B > 7 || ((A != C * 7 || B != (j + start)) && (O[1 - C][A][B] != -1 || O[C][A][B] != -1))) break
+          if(A == C * 7 && B == j + start) return true
+        }
+      }
+    }
+  }
+  return false
 }
 
-
-
-var ECOS={"A":"0","B":"1","C":"2"}
-
-
-function getECO(w){
-
-var result = "RQBNK  ".charAt(O[w[0]][w[1]][w[2]]) + "abcdefgh".charAt(w[2])
-  var simpleMove=(result.charAt(0)+"abcdefgh".charAt(w[4]) + (w[3] + 1).toString()).replace(/\ /g,"")
-  if((simpleMove in openings)){openings=openings[simpleMove]
-  return true
+function getECO(w) {
+  var result = "RQBNK  ".charAt(O[w[0]][w[1]][w[2]]) + "abcdefgh".charAt(w[2])
+  var simpleMove = (result.charAt(0) + "abcdefgh".charAt(w[4]) + (w[3] + 1).toString()).replace(/\ /g, "")
+  if((simpleMove in openings)) {
+    openings = openings[simpleMove]
+    return true
+  } else {
+    return false
+  }
 }
-
-else{
-
-return false}
-}
-
-
 var C = 0
 var pgn =
   "[White \"Person\"]\n[Black \"Computer\"]\n"
 var index = 0
 var busy = false
-
 
 function go() {
   if(gameOver) return;
@@ -414,18 +435,16 @@ function go() {
 
 function go2() {
   makea()
-var aa=aa=P1()
-
-if(!aa)aa = P(C, depth, Infinity)
-
-
-
-
-var output = move(C, aa[0], aa[1], aa[2])
-if(check(C)) {gameOver=true;pgn+=" {resigns} "+(C).toString()+"-"+(1-C).toString()+" ";
-document.getElementById("pgn").value=ecoDescription()+"\n"+pgn
-document.getElementById("pgn").scrollTop=document.getElementById("pgn").scrollHeight
-return } //minimax recommends move into check, player C resigns
+  var aa = aa = P1()
+  if(!aa) aa = P(C, depth, Infinity)
+  var output = move(C, aa[0], aa[1], aa[2])
+  if(check(C)) {
+    gameOver = true;
+    pgn += " {resigns} " + (C).toString() + "-" + (1 - C).toString() + " ";
+    document.getElementById("pgn").value = ecoDescription() + "\n" + pgn
+    document.getElementById("pgn").scrollTop = document.getElementById("pgn").scrollHeight
+    return
+  } //minimax recommends move into check, player C resigns
   animate(output)
   if(C == 0) {
     index++;
@@ -434,11 +453,10 @@ return } //minimax recommends move into check, player C resigns
   if(C == 1) {
     pgn += " " + pgnMove(output) + " "
   }
-  document.getElementById("pgn").value = ecoDescription()+"\n"+pgn.replace(/\ +/g, " ")
+  document.getElementById("pgn").value = ecoDescription() + "\n" + pgn.replace(/\ +/g, " ")
   C = 1 - C
   moveList.push([output[7], output[2], output[3], output[4], output[5]])
 }
-
 
 function animate(r) {
   var p = parseInt(r[2])
@@ -547,8 +565,8 @@ document.getElementById("board").ontouchend = document.getElementById("board").o
   }
   pgn += pgnMove(r)
   showHTML()
-  document.getElementById("pgn").value = ecoDescription()+"\n"+pgn.replace(/\ +/g, " ")
-  document.getElementById("pgn").scrollTop=document.getElementById("pgn").scrollHeight
+  document.getElementById("pgn").value = ecoDescription() + "\n" + pgn.replace(/\ +/g, " ")
+  document.getElementById("pgn").scrollTop = document.getElementById("pgn").scrollHeight
   dragged = undefined
   C = 1 - C
   if(navigator && navigator.vibrate) navigator.vibrate(50)
@@ -578,7 +596,6 @@ function makea() {
     }
   }
 }
-
 var dragged
 var mouse = []
 document.getElementById("board").onmousemove = function(e) {
@@ -598,12 +615,8 @@ document.getElementById("board").ontouchmove = function(e) {
   return false
 }
 
-
-function P1(){
-loadObject()
-
-
-
+function P1() {
+  loadObject()
   O = [
     [
       [0, 3, 2, 1, 4, 2, 3, 0],
@@ -636,92 +649,2367 @@ loadObject()
   pgn =
     "[White \"Person\"]\n[Black \"Computer\"]\n"
   index = 0
-  var returnState=true
+  var returnState = true
   for(var i = 0; i < moveList.length; i++) {
-makea()
-var x=getECO(moveList[i])
-if(!x){returnState=false}
+    makea()
+    var x = getECO(moveList[i])
+    if(!x) {
+      returnState = false
+    }
     var output = findMove(moveList[i][0], moveList[i][1], moveList[i][2], moveList[i][3], moveList[i][4], true)
     pgn += " " + pgnMove(output) + " "
     C = 1 - C
   }
-  document.getElementById("pgn").value = ecoDescription()+"\n"+pgn.replace(/\ +/g, " ")
+  document.getElementById("pgn").value = ecoDescription() + "\n" + pgn.replace(/\ +/g, " ")
   showHTML()
   baseScore = 0 // We have not bothered to recalculate it
-
-if(!returnState)return false
- 
- 
-
-// now modified to choose with likelihood according to number of follow-on moves
-//(array rr contains i as many times as there are corresponding follow-ons)
-var arr=Object.keys(openings)
-var rr=[]
-for(var i=0;i<arr.length;i++){
-if(arr[i]!="ECO"){var arr2=Object.keys(openings[arr[i]])
-                 for(var j=0;j<arr2.length;j++){
-                    if(openings[arr[i]][arr2[j]]!="ECO")
-                            rr.push(i)
-                                               }
-                  }
-                             }
-var j=Math.floor((rr.length)*Math.random())
-return expandMove(arr[rr[j]])
+  if(!returnState) return false
+  // now modified to choose with likelihood according to number of follow-on moves
+  //(array rr contains i as many times as there are corresponding follow-ons)
+  var arr = Object.keys(openings)
+  var rr = []
+  for(var i = 0; i < arr.length; i++) {
+    if(arr[i] != "ECO") {
+      var arr2 = Object.keys(openings[arr[i]])
+      for(var j = 0; j < arr2.length; j++) {
+        if(openings[arr[i]][arr2[j]] != "ECO")
+          rr.push(i)
+      }
+    }
+  }
+  var j = Math.floor((rr.length) * Math.random())
+  return expandMove(arr[rr[j]])
 }
 
-
-
-function ecoDescription(){
-var eco=getEco(openings)
-if(eco){
-return "[ECO \""+eco+" -- "+descriptions[ECOS[eco.charAt(0)]][parseInt(eco.substring(1,eco.length))]+"\"]"}
-return ""
+function ecoDescription() {
+  var eco = getEco(openings)
+  if(eco) {
+    return "[ECO \"" + eco + " -- " + descriptions[ECOS[eco.charAt(0)]][parseInt(eco.substring(1, eco.length))] + "\"]"
+  }
+  return ""
 }
-
-
-
-
 // Array of descriptions for ECO codes
-var descriptions,openings
-function loadObject(){
-descriptions=[["Reti Opening","Nimzovich-Larsen Attack","Bird's Opening","Bird's Opening","Reti Opening","Reti Opening","Reti Opening","King's Indian Attack",null,null,"English","English, Caro-Kann Defensive System","English with b3","English","English","English","English","English","English, Mikenas-Carls","English, Mikenas-Carls, Sicilian Variation","English","English","English","English, Bremen System, Keres Variation","English, Bremen System with ...g6","English","English","English, Three Knights System","English","English, Four Knights, Kingside Fianchetto","English, Symmetrical","English, Symmetrical, Benoni Formation","English, Symmetrical Variation","English, Symmetrical","English, Symmetrical","English, Symmetrical","English","English, Symmetrical","English, Symmetrical","English, Symmetrical, Main line with d4","Queen's Pawn Game","Queen's Pawn Game (with ...d6)","Modern Defense, Averbakh System","Old Benoni","Old Benoni Defense","Queen's Pawn Game","Queen's Pawn Game","Queen's Indian","King's Indian","King's Indian, Fianchetto without c4","Queen's Pawn Game","Budapest Gambit","Budapest Gambit","Old Indian","Old Indian, Ukrainian Variation, 4.Nf3","Old Indian, Main line","Benoni Defense","Benko Gambit","Benko Gambit","Benko Gambit","Benoni Defense","Benoni","Benoni, Fianchetto Variation","Benoni, Fianchetto, 9...Nbd7","Benoni, Fianchetto, 11...Re8","Benoni, 6.e4","Benoni","Benoni, Taimanov Variation","Benoni, Four Pawns Attack","Benoni, Four Pawns Attack, Main line","Benoni, Classical with 7.Nf3","Benoni, Classical, 8.Bg5","Benoni, Classical without 9.O-O","Benoni, Classical, 9.O-O","Benoni, Classical, 9...a6, 10.a4","Benoni, Classical with ...a6 and 10...Bg4","Benoni, Classical, 9...Re8","Benoni, Classical, 9...Re8, 10.Nd2","Benoni, Classical with ...Re8 and ...Na6","Benoni, Classical, 11.f3","Dutch","Dutch","Dutch, Staunton Gambit","Dutch, Staunton Gambit","Dutch","Dutch, with c4 & Nc3","Dutch","Dutch, Leningrad, Main Variation","Dutch, Leningrad, Main Variation with c6","Dutch, Leningrad, Main Variation with Nc6","Dutch","Dutch Defense","Dutch","Dutch, Stonewall, Botvinnik Variation","Dutch, Stonewall with Ba3","Dutch, Stonewall","Dutch, Classical Variation","Dutch, Ilyin-Genevsky","Dutch, Ilyin-Genevsky Variation with Qc2","Dutch, Ilyin-Genevsky Variation with b3"],["","Scandinavian","Alekhine's Defense","Alekhine's Defense","Alekhine's Defense, Modern","Alekhine's Defense, Modern","Robatsch","Pirc",null,null,"Caro-Kann","Caro-Kann, Two Knights, 3...Bg4","Caro-Kann Defense","Caro-Kann, Exchange","Caro-Kann, Panov-Botvinnik Attack","Caro-Kann","Caro-Kann, Bronstein-Larsen Variation","Caro-Kann, Steinitz Variation","Caro-Kann, Classical","Caro-Kann, Classical","Sicilian","Sicilian, 2.f4 and 2.d4","Sicilian, Alapin","Sicilian, Closed","Sicilian, Closed","Sicilian, Closed","Sicilian, Closed, 6.Be3","Sicilian","Sicilian, O'Kelly Variation","Sicilian, Nimzovich-Rubinstein","Sicilian","Sicilian, Rossolimo Variation","Sicilian","Sicilian","Sicilian, Accelerated Fianchetto","Sicilian, Accelerated Fianchetto, Modern Variation with Bc4","Sicilian, Accelerated Fianchetto","Sicilian, Accelerated Fianchetto","Sicilian, Accelerated Fianchetto, Maroczy Bind, 6.Be3","Sicilian, Accelerated Fianchetto, Breyer Variation","Sicilian","Sicilian, Kan","Sicilian, Kan","Sicilian, Kan, 5.Nc3","Sicilian","Sicilian, Taimanov","Sicilian, Taimanov Variation","Sicilian, Taimanov (Bastrikov) Variation","Sicilian, Taimanov Variation","Sicilian, Taimanov Variation","Sicilian","Sicilian, Canal-Sokolsky (Rossolimo) Attack","Sicilian, Canal-Sokolsky (Rossolimo) Attack","Sicilian","Sicilian","Sicilian, Prins Variation, Venice Attack","Sicilian","Sicilian","Sicilian","Sicilian, Boleslavsky Variation, 7.Nb3","Sicilian, Richter-Rauzer","Sicilian, Richter-Rauzer, Larsen Variation, 7.Qd2","Sicilian, Richter-Rauzer","Sicilian, Richter-Rauzer Attack","Sicilian, Richter-Rauzer Attack","Sicilian, Richter-Rauzer Attack, 7...Be7 Defense, 9...Nxd4","Sicilian, Richter-Rauzer Attack, 7...a6","Sicilian, Richter-Rauzer Attack, 7...a6 Defense, 8...Bd7","Sicilian, Richter-Rauzer Attack, 7...a6 Defense, 9...Be7","Sicilian, Richter-Rauzer Attack, 7...a6 Defense, 11.Bxf6","Sicilian, Dragon Variation","Sicilian, Dragon, Levenfish Variation","Sicilian, Dragon","Sicilian, Dragon, Classical","Sicilian, Dragon, Classical","Sicilian, Dragon, Yugoslav Attack","Sicilian, Dragon, Yugoslav Attack","Sicilian, Dragon, Yugoslav Attack","Sicilian, Dragon, Yugoslav Attack, 10.castle long","Sicilian, Dragon, Yugoslav Attack, 12.h4","Sicilian, Scheveningen","Sicilian, Scheveningen, Keres Attack","Sicilian, Scheveningen","Sicilian","Sicilian, Scheveningen","Sicilian, Scheveningen, Classical","Sicilian, Fischer-Sozin Attack","Sicilian, Fischer-Sozin with ...a6 and ...b5","Sicilian, Fischer-Sozin Attack","Sicilian","Sicilian, Najdorf","Sicilian, Najdorf, Zagreb (Fianchetto) Variation","Sicilian, Najdorf, Opocensky Variation","Sicilian, Najdorf, 6.f4","Sicilian, Najdorf","Sicilian, Najdorf, 6...e6","Sicilian, Najdorf","Sicilian, Najdorf","Sicilian, Najdorf","Sicilian, Najdorf, 7...Be7 Main line"],["French, Tarrasch, Open Variation, Main line","French, Exchange","French, Advance","French, Tarrasch","French, Tarrasch, Guimard Main line","French, Tarrasch","French, Tarrasch","French, Tarrasch",null,null,"French","French","French, McCutcheon","French","French, Classical","French, Winawer","French, Winawer","French, Winawer, Advance","French, Winawer","French, Winawer, Advance","King's Pawn Game","Center Game","Center Game","Bishop's Opening","Bishop's Opening","Vienna","Vienna","Vienna Game","Vienna Game","Vienna Gambit","King's Gambit Declined","King's Gambit Declined, Falkbeer Counter Gambit","King's Gambit Declined, Falkbeer Counter Gambit","King's Gambit Accepted","King's Gambit Accepted","King's Gambit Accepted, Cunningham","King's Gambit Accepted, Abbazia Defense","King's Gambit Accepted","King's Gambit Accepted","King's Gambit Accepted","King's Knight Opening","Philidor Defense","Petrov Defense","Petrov, Modern Attack","King's Pawn Game","Scotch Game","Three Knights","Four Knights","Four Knights","Four Knights","Giuoco Piano","Evans Gambit","Evans Gambit","Giuoco Piano","Giuoco Piano","Two Knights Defense","Two Knights","Two Knights","Two Knights","Two Knights","Ruy Lopez","Ruy Lopez, Bird's Defense","Ruy Lopez, Old Steinitz Defense","Ruy Lopez, Schliemann Defense","Ruy Lopez, Classical","Ruy Lopez, Berlin Defense","Ruy Lopez","Ruy Lopez","Ruy Lopez, Exchange","Ruy Lopez, Exchange, Gligoric Variation, 6.d4","Ruy Lopez","Ruy Lopez","Ruy Lopez, Modern Steinitz Defense, 5.O-O","Ruy Lopez, Modern Steinitz Defense","Ruy Lopez, Modern Steinitz Defense","Ruy Lopez, Modern Steinitz Defense","Ruy Lopez, Modern Steinitz Defense, Fianchetto Variation","Ruy Lopez","Ruy Lopez","Ruy Lopez, Steinitz Defense Deferred","Ruy Lopez, Open","Ruy Lopez, Open, Howell Attack","Ruy Lopez, Open","Ruy Lopez, Open","Ruy Lopez, Closed","Ruy Lopez, Exchange Variation Doubly Deferred (DERLD)","Ruy Lopez, Worrall Attack","Ruy Lopez","Ruy Lopez","Ruy Lopez, Marshall","Ruy Lopez, Closed","Ruy Lopez, Closed","Ruy Lopez, Closed","Ruy Lopez, Closed, Smyslov Defense","Ruy Lopez, Closed, Breyer Defense","Ruy Lopez, Closed, Breyer","Ruy Lopez, Closed","Ruy Lopez, Closed, Chigorin","Ruy Lopez, Closed, Chigorin","Ruy Lopez, Closed, Chigorin, 12...cd"],["Queen's Gambit Declined, Albin Counter Gambit, 5.g3","Richter-Veresov Attack","Queen's Pawn Game","Torre Attack (Tartakower Variation)","Queen's Pawn Game","Queen's Pawn Game","Queen's Gambit Declined","Queen's Gambit Declined, Chigorin Defense",null,null,"Queen's Gambit Declined Slav","Queen's Gambit Declined Slav","Queen's Gambit Declined Slav","Queen's Gambit Declined Slav, Exchange Variation","Queen's Gambit Declined Slav, Exchange Variation","Queen's Gambit Declined Slav","Queen's Gambit Declined Slav","Queen's Gambit Declined Slav","Queen's Gambit Declined Slav, Dutch","Queen's Gambit Declined Slav, Dutch","Queen's Gambit Accepted","Queen's Gambit Accepted","Queen's Gambit Accepted","Queen's Gambit Accepted","Queen's Gambit Accepted","Queen's Gambit Accepted","Queen's Gambit Accepted","Queen's Gambit Accepted, Classical","Queen's Gambit Accepted, Classical","Queen's Gambit Accepted, Classical","Queen's Gambit Declined","Queen's Gambit Declined","Queen's Gambit Declined, Tarrasch","Queen's Gambit Declined, Tarrasch","Queen's Gambit Declined, Tarrasch","Queen's Gambit Declined","Queen's Gambit Declined, Exchange, Positional line, 6.Qc2","Queen's Gambit Declined","Queen's Gambit Declined, Ragozin Variation","Queen's Gambit Declined, Ragozin, Vienna Variation","Queen's Gambit Declined, Semi-Tarrasch","Queen's Gambit Declined, Semi-Tarrasch","Queen's Gambit Declined, Semi-Tarrasch, 7.Bd3","Queen's Gambit Declined Semi-Slav","Queen's Gambit Declined Semi-Slav","Queen's Gambit Declined Semi-Slav","Queen's Gambit Declined Semi-Slav","Queen's Gambit Declined Semi-Slav","Queen's Gambit Declined Semi-Slav, Meran","Queen's Gambit Declined Semi-Slav, Meran","Queen's Gambit Declined","Queen's Gambit Declined","Queen's Gambit Declined","Queen's Gambit Declined","Queen's Gambit Declined, Anti-Neo-Orthodox Variation","Queen's Gambit Declined","Queen's Gambit Declined","Queen's Gambit Declined, Lasker Defense","Queen's Gambit Declined, Tartakower (Makagonov-Bondarevsky) System","Queen's Gambit Declined, Tartakower","Queen's Gambit Declined, Orthodox Defense","Queen's Gambit Declined, Orthodox, Rubinstein Attack","Queen's Gambit Declined, Orthodox, Rubinstein Attack","Queen's Gambit Declined, Orthodox Defense","Queen's Gambit Declined, Orthodox, Rubinstein Attack","Queen's Gambit Declined, Orthodox, Rubinstein Attack, Main line","Queen's Gambit Declined, Orthodox Defense, Bd3 line","Queen's Gambit Declined, Orthodox Defense, Bd3 line","Queen's Gambit Declined, Orthodox Defense, Classical","Queen's Gambit Declined, Orthodox Defense, Classical, 13.de","Neo-Grunfeld Defense","Neo-Grunfeld","Neo-Grunfeld, 5.cd, Main line","Neo-Grunfeld, 5.Nf3","Neo-Grunfeld, 6.cd Nxd5, 7.O-O","Neo-Grunfeld, 6.cd Nxd5, 7.O-O c5, 8.dxc5","Neo-Grunfeld, 6.cd Nxd5, 7.O-O Nb6","Neo-Grunfeld, 6.O-O","Neo-Grunfeld, 6.O-O c6","Neo-Grunfeld, 6.O-O, Main line","Grunfeld","Grunfeld, Russian Variation","Grunfeld, 4.Bf4","Grunfeld, Grunfeld Gambit","Grunfeld, Grunfeld Gambit Accepted","Grunfeld","Grunfeld, Exchange","Grunfeld, Exchange","Grunfeld, Spassky Variation, Main line, 10...cd, 11.cd","Grunfeld","Grunfeld","Grunfeld, 5.Bg5","Grunfeld, 5.Bf4","Grunfeld, with Bf4 & e3","Grunfeld","Grunfeld","Grunfeld, Russian Variation","Grunfeld, Russian","Grunfeld, Russian","Grunfeld Defense, Smyslov"],["Catalan, Closed","Catalan, Closed","Catalan, Open, 5.Qa4","Catalan, Open","Catalan, Open, 5.Nf3","Catalan, Open, Classical line","Catalan, Closed, 5.Nf3","Catalan, Closed",null,null,"Queen's Pawn Game","Bogo-Indian Defense","Queen's Indian","Queen's Indian, 4.Nc3, Main line","Queen's Indian","Queen's Indian","Queen's Indian","Queen's Indian","Queen's Indian, Old Main line, 7.Nc3","Queen's Indian, Old Main line, 9.Qxc3","Nimzo-Indian","Nimzo-Indian, Three Knights","Nimzo-Indian, Spielmann Variation","Nimzo-Indian, Spielmann","Nimzo-Indian, Samisch","Nimzo-Indian, Samisch","Nimzo-Indian, Samisch","Nimzo-Indian, Samisch Variation","Nimzo-Indian, Samisch Variation","Nimzo-Indian, Samisch","Nimzo-Indian, Leningrad","Nimzo-Indian, Leningrad, Main line","Nimzo-Indian, Classical","Nimzo-Indian, Classical","Nimzo-Indian, Classical, Noa Variation","Nimzo-Indian, Classical, Noa Variation, 5.cd ed","Nimzo-Indian, Classical","Nimzo-Indian, Classical","Nimzo-Indian, Classical, 4...c5","Nimzo-Indian, Classical, Pirc Variation","Nimzo-Indian, 4.e3","Nimzo-Indian","Nimzo-Indian, 4.e3 c5, 5.Ne2 (Rubinstein)","Nimzo-Indian, Fischer Variation","Nimzo-Indian, Fischer Variation, 5.Ne2","Nimzo-Indian, 4.e3, Bronstein (Byrne) Variation","Nimzo-Indian","Nimzo-Indian, 4.e3 O-O 5.Bd3","Nimzo-Indian, 4.e3 O-O 5.Bd3 d5","Nimzo-Indian, 4.e3, Botvinnik System","Nimzo-Indian, 4.e3 O-O 5.Nf3, without ...d5","Nimzo-Indian, 4.e3","Nimzo-Indian, 4.e3, Main line with ...b6","Nimzo-Indian, 4.e3","Nimzo-Indian, 4.e3, Gligoric System","Nimzo-Indian, 4.e3, Gligoric System, Bronstein Variation","Nimzo-Indian, 4.e3, Main line with 7...Nc6","Nimzo-Indian, 4.e3, Main line with 8...dc and 9...cd","Nimzo-Indian, 4.e3, Main line with 8...Bxc3","Nimzo-Indian, 4.e3, Main line","King's Indian Defense","King's Indian","King's Indian, Fianchetto","King's Indian, Fianchetto, Panno Variation","King's Indian, Fianchetto, Yugoslav System","King's Indian, Fianchetto, Yugoslav, 7.O-O","King's Indian, Fianchetto, Yugoslav Panno","King's Indian, Fianchetto","King's Indian, Fianchetto, Classical Variation, 8.e4","King's Indian, Fianchetto, Classical Main line","King's Indian","King's Indian, Makagonov System (5.h3)","King's Indian","King's Indian","King's Indian, Averbakh, 6...c5","King's Indian, Averbakh, Main line","King's Indian, Four Pawns Attack","King's Indian","King's Indian, Four Pawns Attack, with Be2 and Nf3","King's Indian, Four Pawns Attack, Main line","King's Indian, Samisch Variation","King's Indian, Samisch","King's Indian, Samisch, double Fianchetto Variation","King's Indian, Samisch","King's Indian, Samisch, Panno Main line","King's Indian, Samisch, Orthodox Variation","King's Indian, Samisch, Orthodox, 7.Nge2 c6","King's Indian, Samisch, Orthodox","King's Indian, Samisch, Orthodox, 7.d5 c6","King's Indian, Samisch, Orthodox Main line","King's Indian","King's Indian","King's Indian","King's Indian, Petrosian System","King's Indian, Orthodox","King's Indian, Orthodox, 7...Nbd7, 8.Re1","King's Indian, Orthodox, 7...Nbd7, Main line","King's Indian","King's Indian, Orthodox, Taimanov, 9.Ne1","King's Indian, Orthodox, Taimanov"]]
+var descriptions, openings
 
-//ECO object
-
-openings={"b3":{"ECO":"A01"},"f4":{"d5":{"ECO":"A03"},"ECO":"A02"},"Nf3":{"Nf6":{"ECO":"A05"},"d5":{"g3":{"c5":{"Bg2":{"ECO":"A08"}},"ECO":"A07"},"c4":{"ECO":"A09"},"ECO":"A06"},"ECO":"A04"},"c4":{"c6":{"Nf3":{"d5":{"b3":{"ECO":"A12"}}},"ECO":"A11"},"e6":{"Nf3":{"d5":{"g3":{"Nf6":{"Bg2":{"Be7":{"OO":{"ECO":"A14"}}}}}}},"ECO":"A13"},"Nf6":{"Nc3":{"e6":{"e4":{"c5":{"ECO":"A19"},"ECO":"A18"},"ECO":"A17"},"ECO":"A16"},"ECO":"A15"},"e5":{"Nc3":{"Nf6":{"g3":{"c6":{"ECO":"A23"},"g6":{"ECO":"A24"}},"ECO":"A22"},"Nc6":{"g3":{"g6":{"Bg2":{"Bg7":{"d3":{"d6":{"ECO":"A26"}}}}}},"Nf3":{"Nf6":{"g3":{"ECO":"A29"},"ECO":"A28"},"ECO":"A27"},"ECO":"A25"},"ECO":"A21"},"ECO":"A20"},"c5":{"Nf3":{"Nf6":{"d4":{"cxd4":{"Nxd4":{"e6":{"Nc3":{"Nc6":{"ECO":"A33"}},"ECO":"A32"}}},"ECO":"A31"}}},"Nc3":{"Nc6":{"g3":{"g6":{"Bg2":{"Bg7":{"Nf3":{"Nf6":{"OO":{"OO":{"d4":{"ECO":"A39"}}},"ECO":"A38"},"ECO":"A37"}}}},"ECO":"A36"},"ECO":"A35"},"ECO":"A34"},"ECO":"A30"},"ECO":"A10"},"d4":{"d6":{"c4":{"g6":{"Nc3":{"Bg7":{"e4":{"ECO":"A42"}}}}},"ECO":"A41"},"c5":{"d5":{"e5":{"ECO":"A44"}},"ECO":"A43"},"Nf6":{"Nf3":{"b6":{"ECO":"A47"},"g6":{"g3":{"ECO":"A49"},"ECO":"A48"},"ECO":"A46"},"c4":{"e5":{"dxe5":{"Ng4":{"ECO":"A52"}},"ECO":"A51"},"d6":{"Nc3":{"e5":{"Nf3":{"Nbd7":{"e4":{"ECO":"A55"}},"ECO":"A54"}}},"ECO":"A53"},"c5":{"d5":{"b5":{"cxb5":{"a6":{"bxa6":{"Bxa6":{"Nc3":{"d6":{"e4":{"ECO":"A59"}}}},"ECO":"A58"}}},"ECO":"A57"},"e6":{"Nc3":{"exd5":{"cxd5":{"d6":{"Nf3":{"g6":{"g3":{"Bg7":{"Bg2":{"OO":{"ECO":"A64"}}}},"ECO":"A61"}},"e4":{"g6":{"f4":{"Bg7":{"Bb5":{"ECO":"A67"},"Nf3":{"OO":{"ECO":"A69"}}},"ECO":"A66"},"Nf3":{"Bg7":{"Bg5":{"ECO":"A71"},"Be2":{"OO":{"ECO":"A79"}}},"ECO":"A70"}},"ECO":"A65"}}}}},"ECO":"A60"}},"ECO":"A56"},"g6":{"f3":{"d5":{"ECO":"D70"}},"g3":{"d5":{"Bg2":{"Bg7":{"cxd5":{"Nxd5":{"e4":{"Nb6":{"Ne2":{"ECO":"D72"}}}}},"Nf3":{"OO":{"cxd5":{"Nxd5":{"OO":{"c5":{"dxc5":{"ECO":"D75"}},"Nb6":{"ECO":"D76"},"ECO":"D74"}}},"OO":{"c6":{"cxd5":{"cxd5":{"ECO":"D79"}},"ECO":"D78"},"ECO":"D77"}},"ECO":"D73"}}},"ECO":"D71"}},"Nc3":{"d5":{"Qb3":{"ECO":"D81"},"Bf4":{"Bg7":{"e3":{"OO":{"cxd5":{"Nxd5":{"Nxd5":{"Qxd5":{"Bxc7":{"ECO":"D84"}}}}},"ECO":"D83"}}},"ECO":"D82"},"cxd5":{"Nxd5":{"e4":{"Nxc3":{"bxc3":{"Bg7":{"Bc4":{"OO":{"Ne2":{"c5":{"ECO":"D87"},"ECO":"D89"}},"ECO":"D86"}}}}},"ECO":"D85"}},"Nf3":{"Bg7":{"Bg5":{"ECO":"D91"},"Bf4":{"OO":{"e3":{"ECO":"D93"}},"ECO":"D92"},"e3":{"OO":{"Qb3":{"ECO":"D95"}},"ECO":"D94"},"Qb3":{"dxc4":{"Qxc4":{"OO":{"e4":{"Bg4":{"Be3":{"ECO":"D99"},"ECO":"D98"},"ECO":"D97"}}}},"ECO":"D96"}},"ECO":"D90"},"ECO":"D80"},"Bg7":{"Nf3":{"d6":{"g3":{"OO":{"Bg2":{"Nc6":{"OO":{"a6":{"ECO":"E63"}}},"c5":{"OO":{"Nc6":{"d5":{"ECO":"E66"}},"ECO":"E65"},"ECO":"E64"},"Nbd7":{"OO":{"e5":{"e4":{"c6":{"h3":{"ECO":"E69"}},"ECO":"E68"}}},"ECO":"E67"}}},"ECO":"E62"}}},"e4":{"d6":{"h3":{"ECO":"E71"},"g3":{"ECO":"E72"},"Be2":{"OO":{"Bg5":{"c5":{"d5":{"e6":{"ECO":"E75"}},"ECO":"E74"}}},"ECO":"E73"},"f4":{"OO":{"Be2":{"c5":{"Nf3":{"cxd4":{"Nxd4":{"Nc6":{"Be3":{"ECO":"E79"}}}},"ECO":"E78"}},"ECO":"E77"}},"ECO":"E76"},"f3":{"OO":{"Be3":{"b6":{"ECO":"E82"},"Nc6":{"Nge2":{"a6":{"Qd2":{"Rb8":{"ECO":"E84"}}}},"ECO":"E83"},"e5":{"Nge2":{"c6":{"ECO":"E86"}},"d5":{"c6":{"Nge2":{"cxd5":{"ECO":"E89"}},"ECO":"E88"},"ECO":"E87"},"ECO":"E85"}},"ECO":"E81"},"ECO":"E80"},"Nf3":{"OO":{"Be2":{"e5":{"d5":{"Nbd7":{"ECO":"E93"}},"OO":{"Nbd7":{"Re1":{"c6":{"Bf1":{"a5":{"ECO":"E96"}}},"ECO":"E95"}},"Nc6":{"d5":{"Ne7":{"Ne1":{"Nd7":{"f3":{"f5":{"ECO":"E99"}}},"ECO":"E98"}}},"ECO":"E97"},"ECO":"E94"},"ECO":"E92"},"ECO":"E91"}},"ECO":"E90"}},"ECO":"E70"}},"ECO":"E61"},"ECO":"E60"},"e6":{"g3":{"d5":{"Bg2":{"dxc4":{"Qa4":{"Nbd7":{"Qxc4":{"ECO":"E03"}},"ECO":"E02"},"Nf3":{"Be7":{"ECO":"E05"},"ECO":"E04"}},"Be7":{"Nf3":{"OO":{"OO":{"Nbd7":{"Qc2":{"c6":{"Nbd2":{"ECO":"E09"}},"ECO":"E08"},"ECO":"E07"}}},"ECO":"E06"}},"ECO":"E01"}}},"Nf3":{"Bb4":{"ECO":"E11"},"b6":{"Nc3":{"Bb7":{"Bg5":{"h6":{"Bh4":{"Bb4":{"ECO":"E13"}}}}}},"e3":{"ECO":"E14"},"g3":{"Bb7":{"Bg2":{"Bb4":{"ECO":"E16"},"Be7":{"OO":{"OO":{"Nc3":{"Ne4":{"Qc2":{"Nxc3":{"ECO":"E19"}}},"ECO":"E18"}}},"ECO":"E17"}}},"ECO":"E15"},"ECO":"E12"},"ECO":"E10"},"Nc3":{"Bb4":{"Nf3":{"ECO":"E21"},"Qb3":{"c5":{"dxc5":{"Nc6":{"ECO":"E23"}}},"ECO":"E22"},"a3":{"Bxc3":{"bxc3":{"c5":{"f3":{"d5":{"cxd5":{"ECO":"E25"}}},"e3":{"ECO":"E26"}},"OO":{"e3":{"c5":{"Bd3":{"Nc6":{"ECO":"E29"}}},"ECO":"E28"},"ECO":"E27"},"ECO":"E24"}}},"Bg5":{"h6":{"Bh4":{"c5":{"d5":{"d6":{"ECO":"E31"}}}}},"ECO":"E30"},"Qc2":{"Nc6":{"ECO":"E33"},"d5":{"cxd5":{"exd5":{"ECO":"E35"}},"a3":{"Bxc3":{"Qxc3":{"Ne4":{"Qc2":{"ECO":"E37"}}}},"ECO":"E36"},"ECO":"E34"},"c5":{"dxc5":{"OO":{"ECO":"E39"}},"ECO":"E38"},"ECO":"E32"},"e3":{"c5":{"Ne2":{"ECO":"E42"},"ECO":"E41"},"b6":{"Ne2":{"Ba6":{"ECO":"E45"},"ECO":"E44"},"ECO":"E43"},"OO":{"Bd3":{"d5":{"a3":{"Bxc3":{"bxc3":{"ECO":"E49"}}},"ECO":"E48"},"ECO":"E47"},"Nf3":{"d5":{"Bd3":{"b6":{"ECO":"E52"},"c5":{"OO":{"dxc4":{"Bxc4":{"Nbd7":{"ECO":"E55"},"ECO":"E54"}},"Nc6":{"a3":{"dxc4":{"ECO":"E57"},"Bxc3":{"bxc3":{"dxc4":{"Bxc4":{"ECO":"E59"}},"ECO":"E58"}}},"ECO":"E56"}},"ECO":"E53"}},"ECO":"E51"},"ECO":"E50"},"ECO":"E46"},"ECO":"E40"},"ECO":"E20"}},"ECO":"E00"},"ECO":"A50"},"ECO":"A45"},"f5":{"g3":{"ECO":"A81"},"e4":{"fxe4":{"Nc3":{"Nf6":{"Bg5":{"ECO":"A83"}}}},"ECO":"A82"},"c4":{"Nf6":{"Nc3":{"ECO":"A85"},"g3":{"g6":{"Bg2":{"Bg7":{"Nf3":{"OO":{"OO":{"d6":{"Nc3":{"c6":{"ECO":"A88"},"Nc6":{"ECO":"A89"}}}}},"ECO":"A87"}}}},"e6":{"Bg2":{"Be7":{"Nf3":{"OO":{"OO":{"d5":{"b3":{"c6":{"Ba3":{"ECO":"A94"}},"ECO":"A93"},"Nc3":{"c6":{"ECO":"A95"}}},"d6":{"Nc3":{"Qe8":{"Qc2":{"ECO":"A98"},"b3":{"ECO":"A99"},"ECO":"A97"}},"ECO":"A96"}},"ECO":"A92"}},"ECO":"A91"},"ECO":"A90"}},"ECO":"A86"}},"ECO":"A84"},"ECO":"A80"},"d5":{"Nc3":{"Nf6":{"Bg5":{"ECO":"D01"}}},"Nf3":{"Nf6":{"Bg5":{"ECO":"D03"},"e3":{"e6":{"ECO":"D05"},"ECO":"D04"}},"ECO":"D02"},"c4":{"Nc6":{"ECO":"D07"},"e5":{"dxe5":{"d4":{"Nf3":{"Nc6":{"g3":{"ECO":"D09"}}}}},"ECO":"D08"},"c6":{"Nf3":{"Nf6":{"e3":{"Bf5":{"ECO":"D12"}},"cxd5":{"cxd5":{"Nc3":{"Nc6":{"Bf4":{"Bf5":{"ECO":"D14"}}}},"ECO":"D13"}},"Nc3":{"dxc4":{"a4":{"Bf5":{"e3":{"e6":{"Bxc4":{"Bb4":{"OO":{"OO":{"Qe2":{"ECO":"D19"}}}}}},"ECO":"D18"},"ECO":"D17"},"ECO":"D16"}},"ECO":"D15"}},"ECO":"D11"},"ECO":"D10"},"dxc4":{"Nf3":{"a6":{"e3":{"Bg4":{"Bxc4":{"e6":{"d5":{"ECO":"D22"}}}}}},"Nf6":{"Nc3":{"ECO":"D24"},"e3":{"e6":{"Bxc4":{"c5":{"OO":{"a6":{"Qe2":{"b5":{"Bb3":{"Bb7":{"ECO":"D29"}}},"ECO":"D28"},"ECO":"D27"}}}},"ECO":"D26"},"ECO":"D25"},"ECO":"D23"},"ECO":"D21"},"ECO":"D20"},"e6":{"Nc3":{"c5":{"cxd5":{"exd5":{"Nf3":{"Nc6":{"g3":{"Nf6":{"Bg2":{"Be7":{"ECO":"D34"}}},"ECO":"D33"}}}}},"ECO":"D32"},"Nf6":{"cxd5":{"exd5":{"Bg5":{"c6":{"Qc2":{"ECO":"D36"}}}}},"Nf3":{"Bb4":{"Bg5":{"dxc4":{"ECO":"D39"}},"ECO":"D38"},"c5":{"cxd5":{"Nxd5":{"e3":{"Nc6":{"Bd3":{"ECO":"D42"}}}},"ECO":"D41"},"ECO":"D40"},"c6":{"Bg5":{"dxc4":{"ECO":"D44"}},"e3":{"Nbd7":{"Bd3":{"dxc4":{"Bxc4":{"b5":{"Bd3":{"a6":{"e4":{"c5":{"e5":{"cxd4":{"Nxb5":{"ECO":"D49"}}}}},"ECO":"D48"}}},"ECO":"D47"}},"ECO":"D46"}},"ECO":"D45"},"ECO":"D43"},"ECO":"D37"},"Bg5":{"Nbd7":{"e3":{"c6":{"Nf3":{"ECO":"D52"}}},"ECO":"D51"},"Be7":{"e3":{"OO":{"Rc1":{"ECO":"D54"},"Nf3":{"h6":{"Bh4":{"Ne4":{"Bxe7":{"Qxe7":{"ECO":"D57"}}},"b6":{"cxd5":{"Nxd5":{"ECO":"D59"}},"ECO":"D58"},"ECO":"D56"}},"Nbd7":{"Qc2":{"c5":{"cxd5":{"ECO":"D62"}},"ECO":"D61"},"Rc1":{"c6":{"Qc2":{"a6":{"cxd5":{"ECO":"D65"}},"ECO":"D64"},"Bd3":{"dxc4":{"Bxc4":{"Nd5":{"ECO":"D67"}},"ECO":"D69"},"ECO":"D66"}},"ECO":"D63"},"ECO":"D60"},"ECO":"D55"}}},"ECO":"D53"},"ECO":"D50"},"ECO":"D35"},"ECO":"D31"},"ECO":"D30"},"ECO":"D06"},"ECO":"D00"},"ECO":"A40"},"e4":{"d5":{"ECO":"B01"},"Nf6":{"e5":{"Nd5":{"d4":{"d6":{"Nf3":{"Bg4":{"ECO":"B05"},"ECO":"B04"}},"ECO":"B03"}}},"ECO":"B02"},"g6":{"ECO":"B06"},"d6":{"d4":{"Nf6":{"Nc3":{"g6":{"Nf3":{"ECO":"B08"},"f4":{"ECO":"B09"}}},"ECO":"B07"}}},"c6":{"Nc3":{"d5":{"Nf3":{"Bg4":{"ECO":"B11"}}}},"d4":{"d5":{"exd5":{"cxd5":{"c4":{"Nf6":{"Nc3":{"e6":{"ECO":"B14"}}}},"ECO":"B13"}},"Nc3":{"dxe4":{"Nxe4":{"Nf6":{"Nxf6":{"gxf6":{"ECO":"B16"}}},"Nd7":{"ECO":"B17"},"Bf5":{"Ng3":{"Bg6":{"h4":{"h6":{"Nf3":{"Nd7":{"ECO":"B19"}}}}}},"ECO":"B18"}}},"ECO":"B15"}},"ECO":"B12"},"ECO":"B10"},"c5":{"f4":{"ECO":"B21"},"c3":{"ECO":"B22"},"Nc3":{"Nc6":{"g3":{"g6":{"Bg2":{"Bg7":{"d3":{"d6":{"Be3":{"ECO":"B26"},"ECO":"B25"}}}}},"ECO":"B24"}},"ECO":"B23"},"Nf3":{"a6":{"ECO":"B28"},"Nf6":{"ECO":"B29"},"Nc6":{"Bb5":{"g6":{"ECO":"B31"}},"d4":{"cxd4":{"Nxd4":{"e5":{"ECO":"B32"},"g6":{"Nxc6":{"ECO":"B34"},"Nc3":{"Bg7":{"Be3":{"Nf6":{"Bc4":{"ECO":"B35"}}}}},"c4":{"Bg7":{"Be3":{"Nf6":{"Nc3":{"Ng4":{"ECO":"B39"}}},"ECO":"B38"},"ECO":"B37"},"ECO":"B36"}},"Nf6":{"Nc3":{"d6":{"Be2":{"e5":{"Nb3":{"ECO":"B59"}},"ECO":"B58"}}}},"ECO":"B33"}}},"ECO":"B30"},"e6":{"d4":{"cxd4":{"Nxd4":{"a6":{"Bd3":{"ECO":"B42"},"Nc3":{"ECO":"B43"},"ECO":"B41"},"Nc6":{"Nc3":{"a6":{"ECO":"B46"},"Qc7":{"Be3":{"a6":{"Be2":{"ECO":"B49"}},"ECO":"B48"},"ECO":"B47"},"ECO":"B45"},"ECO":"B44"}}}},"ECO":"B40"},"d6":{"Bb5":{"Bd7":{"ECO":"B52"},"ECO":"B51"},"d4":{"cxd4":{"Qxd4":{"ECO":"B53"},"Nxd4":{"Nf6":{"f3":{"e5":{"Bb5":{"ECO":"B55"}}},"Nc3":{"Nc6":{"Bc4":{"ECO":"B57"},"Bg5":{"Bd7":{"Qd2":{"ECO":"B61"}},"e6":{"Qd2":{"Be7":{"OOO":{"OO":{"f4":{"Nxd4":{"Qxd4":{"ECO":"B65"}},"ECO":"B64"}}}},"a6":{"OOO":{"Bd7":{"f4":{"Be7":{"Nf3":{"b5":{"Bxf6":{"ECO":"B69"}}},"ECO":"B68"}},"ECO":"B67"}},"ECO":"B66"},"ECO":"B63"},"ECO":"B62"},"ECO":"B60"}},"g6":{"f4":{"ECO":"B71"},"Be3":{"Bg7":{"Be2":{"Nc6":{"OO":{"OO":{"Nb3":{"ECO":"B74"}},"ECO":"B73"}}},"f3":{"OO":{"Qd2":{"Nc6":{"Bc4":{"Bd7":{"OOO":{"Qa5":{"Bb3":{"Rfc8":{"h4":{"ECO":"B79"}}}},"ECO":"B78"}},"ECO":"B77"}}},"ECO":"B76"},"ECO":"B75"}},"ECO":"B72"},"ECO":"B70"},"e6":{"g4":{"ECO":"B81"},"f4":{"ECO":"B82"},"Be2":{"a6":{"OO":{"Qc7":{"f4":{"Nc6":{"ECO":"B85"}}}},"ECO":"B84"},"ECO":"B83"},"Bc4":{"a6":{"Bb3":{"b5":{"ECO":"B87"}}},"Nc6":{"Be3":{"ECO":"B89"},"ECO":"B88"},"ECO":"B86"},"ECO":"B80"},"a6":{"g3":{"ECO":"B91"},"Be2":{"ECO":"B92"},"f4":{"ECO":"B93"},"Bg5":{"e6":{"f4":{"Qb6":{"ECO":"B97"},"Be7":{"Qf3":{"Qc7":{"OOO":{"Nbd7":{"ECO":"B99"}}}},"ECO":"B98"},"ECO":"B96"},"ECO":"B95"},"ECO":"B94"},"ECO":"B90"},"ECO":"B56"}},"ECO":"B54"}}},"ECO":"B50"},"ECO":"B27"},"ECO":"B20"},"e6":{"d4":{"d5":{"exd5":{"exd5":{"Nc3":{"Nf6":{"Bg5":{"ECO":"C01"}}}}},"e5":{"ECO":"C02"},"Nd2":{"Nc6":{"Ngf3":{"Nf6":{"ECO":"C04"}}},"Nf6":{"e5":{"Nfd7":{"Bd3":{"c5":{"c3":{"Nc6":{"Ne2":{"cxd4":{"cxd4":{"ECO":"C06"}}}}}}}}},"ECO":"C05"},"c5":{"exd5":{"exd5":{"Ngf3":{"Nc6":{"ECO":"C09"}},"ECO":"C08"}},"ECO":"C07"},"ECO":"C03"},"Nc3":{"Nf6":{"Bg5":{"Bb4":{"ECO":"C12"},"Be7":{"e5":{"Nfd7":{"Bxe7":{"Qxe7":{"ECO":"C14"}}}},"ECO":"C13"}},"ECO":"C11"},"Bb4":{"e5":{"c5":{"a3":{"Bxc3":{"bxc3":{"Ne7":{"ECO":"C19"},"ECO":"C18"}}},"ECO":"C17"},"ECO":"C16"},"ECO":"C15"},"ECO":"C10"}}},"ECO":"C00"},"e5":{"d4":{"exd4":{"Qxd4":{"Nc6":{"ECO":"C22"}},"ECO":"C21"}},"Bc4":{"Nf6":{"ECO":"C24"},"ECO":"C23"},"Nc3":{"Nf6":{"Bc4":{"Nxe4":{"ECO":"C27"},"Nc6":{"ECO":"C28"}},"f4":{"ECO":"C29"},"ECO":"C26"},"ECO":"C25"},"f4":{"d5":{"exd5":{"e4":{"d3":{"Nf6":{"ECO":"C32"}}}},"ECO":"C31"},"exf4":{"Nf3":{"Be7":{"ECO":"C35"},"d5":{"ECO":"C36"},"g5":{"Nc3":{"ECO":"C37"},"Bc4":{"Bg7":{"ECO":"C38"}},"h4":{"ECO":"C39"}},"ECO":"C34"},"ECO":"C33"},"ECO":"C30"},"Nf3":{"d6":{"ECO":"C41"},"Nf6":{"d4":{"exd4":{"e5":{"Ne4":{"Qxd4":{"ECO":"C43"}}}}},"ECO":"C42"},"Nc6":{"d4":{"exd4":{"Nxd4":{"ECO":"C45"}}},"Nc3":{"Nf6":{"Bb5":{"Bb4":{"ECO":"C49"},"ECO":"C48"},"ECO":"C47"},"ECO":"C46"},"Bc4":{"Bc5":{"b4":{"Bxb4":{"c3":{"Ba5":{"ECO":"C52"}}},"ECO":"C51"},"c3":{"Nf6":{"d4":{"exd4":{"cxd4":{"ECO":"C54"}}}},"ECO":"C53"},"ECO":"C50"},"Nf6":{"d4":{"exd4":{"OO":{"Nxe4":{"ECO":"C56"}}}},"Ng5":{"d5":{"exd5":{"Na5":{"Bb5":{"c6":{"dxc6":{"bxc6":{"Be2":{"h6":{"ECO":"C59"}}}}}},"ECO":"C58"}}},"ECO":"C57"},"ECO":"C55"}},"Bb5":{"Nd4":{"ECO":"C61"},"d6":{"ECO":"C62"},"f5":{"ECO":"C63"},"Bc5":{"ECO":"C64"},"Nf6":{"OO":{"d6":{"ECO":"C66"},"Nxe4":{"ECO":"C67"}},"ECO":"C65"},"a6":{"Bxc6":{"dc":{"OO":{"f6":{"d4":{"ECO":"C69"}}}},"ECO":"C68"},"Ba4":{"d6":{"OO":{"ECO":"C72"},"Bxc6":{"bxc6":{"d4":{"ECO":"C73"}}},"c3":{"Bd7":{"d4":{"g6":{"ECO":"C76"}},"ECO":"C75"},"ECO":"C74"},"ECO":"C71"},"Nf6":{"OO":{"d6":{"ECO":"C79"},"Nxe4":{"d4":{"b5":{"Bb3":{"d5":{"dxe5":{"Be6":{"c3":{"ECO":"C82"},"ECO":"C83"}}}}}},"ECO":"C80"},"Be7":{"Bxc6":{"dxc6":{"ECO":"C85"}},"Qe2":{"ECO":"C86"},"Re1":{"d6":{"ECO":"C87"},"b5":{"Bb3":{"OO":{"c3":{"d5":{"ECO":"C89"},"d6":{"d4":{"ECO":"C91"},"h3":{"h6":{"ECO":"C93"},"Nb8":{"d4":{"ECO":"C95"},"ECO":"C94"},"Na5":{"Bc2":{"c5":{"d4":{"Qc7":{"Nbd2":{"Nc6":{"ECO":"C98"},"cxd4":{"cxd4":{"ECO":"C99"}}},"ECO":"C97"}}},"ECO":"C96"}},"ECO":"C92"},"ECO":"C90"}}},"ECO":"C88"}}},"ECO":"C84"},"ECO":"C78"},"ECO":"C77"},"ECO":"C70"}},"ECO":"C60"},"ECO":"C44"},"ECO":"C40"},"ECO":"C20"},"ECO":"B00"},"ECO":""}
-
+function loadObject() {
+  descriptions = [
+    ["Reti Opening", "Nimzovich-Larsen Attack", "Bird's Opening", "Bird's Opening", "Reti Opening", "Reti Opening", "Reti Opening", "King's Indian Attack", null, null, "English", "English, Caro-Kann Defensive System", "English with b3", "English", "English", "English", "English", "English", "English, Mikenas-Carls", "English, Mikenas-Carls, Sicilian Variation", "English", "English", "English", "English, Bremen System, Keres Variation", "English, Bremen System with ...g6", "English", "English", "English, Three Knights System", "English", "English, Four Knights, Kingside Fianchetto", "English, Symmetrical", "English, Symmetrical, Benoni Formation", "English, Symmetrical Variation", "English, Symmetrical", "English, Symmetrical", "English, Symmetrical", "English", "English, Symmetrical", "English, Symmetrical", "English, Symmetrical, Main line with d4", "Queen's Pawn Game", "Queen's Pawn Game (with ...d6)", "Modern Defense, Averbakh System", "Old Benoni", "Old Benoni Defense", "Queen's Pawn Game", "Queen's Pawn Game", "Queen's Indian", "King's Indian", "King's Indian, Fianchetto without c4", "Queen's Pawn Game", "Budapest Gambit", "Budapest Gambit", "Old Indian", "Old Indian, Ukrainian Variation, 4.Nf3", "Old Indian, Main line", "Benoni Defense", "Benko Gambit", "Benko Gambit", "Benko Gambit", "Benoni Defense", "Benoni", "Benoni, Fianchetto Variation", "Benoni, Fianchetto, 9...Nbd7", "Benoni, Fianchetto, 11...Re8", "Benoni, 6.e4", "Benoni", "Benoni, Taimanov Variation", "Benoni, Four Pawns Attack", "Benoni, Four Pawns Attack, Main line", "Benoni, Classical with 7.Nf3", "Benoni, Classical, 8.Bg5", "Benoni, Classical without 9.O-O", "Benoni, Classical, 9.O-O", "Benoni, Classical, 9...a6, 10.a4", "Benoni, Classical with ...a6 and 10...Bg4", "Benoni, Classical, 9...Re8", "Benoni, Classical, 9...Re8, 10.Nd2", "Benoni, Classical with ...Re8 and ...Na6", "Benoni, Classical, 11.f3", "Dutch", "Dutch", "Dutch, Staunton Gambit", "Dutch, Staunton Gambit", "Dutch", "Dutch, with c4 & Nc3", "Dutch", "Dutch, Leningrad, Main Variation", "Dutch, Leningrad, Main Variation with c6", "Dutch, Leningrad, Main Variation with Nc6", "Dutch", "Dutch Defense", "Dutch", "Dutch, Stonewall, Botvinnik Variation", "Dutch, Stonewall with Ba3", "Dutch, Stonewall", "Dutch, Classical Variation", "Dutch, Ilyin-Genevsky", "Dutch, Ilyin-Genevsky Variation with Qc2", "Dutch, Ilyin-Genevsky Variation with b3"],
+    ["", "Scandinavian", "Alekhine's Defense", "Alekhine's Defense", "Alekhine's Defense, Modern", "Alekhine's Defense, Modern", "Robatsch", "Pirc", null, null, "Caro-Kann", "Caro-Kann, Two Knights, 3...Bg4", "Caro-Kann Defense", "Caro-Kann, Exchange", "Caro-Kann, Panov-Botvinnik Attack", "Caro-Kann", "Caro-Kann, Bronstein-Larsen Variation", "Caro-Kann, Steinitz Variation", "Caro-Kann, Classical", "Caro-Kann, Classical", "Sicilian", "Sicilian, 2.f4 and 2.d4", "Sicilian, Alapin", "Sicilian, Closed", "Sicilian, Closed", "Sicilian, Closed", "Sicilian, Closed, 6.Be3", "Sicilian", "Sicilian, O'Kelly Variation", "Sicilian, Nimzovich-Rubinstein", "Sicilian", "Sicilian, Rossolimo Variation", "Sicilian", "Sicilian", "Sicilian, Accelerated Fianchetto", "Sicilian, Accelerated Fianchetto, Modern Variation with Bc4", "Sicilian, Accelerated Fianchetto", "Sicilian, Accelerated Fianchetto", "Sicilian, Accelerated Fianchetto, Maroczy Bind, 6.Be3", "Sicilian, Accelerated Fianchetto, Breyer Variation", "Sicilian", "Sicilian, Kan", "Sicilian, Kan", "Sicilian, Kan, 5.Nc3", "Sicilian", "Sicilian, Taimanov", "Sicilian, Taimanov Variation", "Sicilian, Taimanov (Bastrikov) Variation", "Sicilian, Taimanov Variation", "Sicilian, Taimanov Variation", "Sicilian", "Sicilian, Canal-Sokolsky (Rossolimo) Attack", "Sicilian, Canal-Sokolsky (Rossolimo) Attack", "Sicilian", "Sicilian", "Sicilian, Prins Variation, Venice Attack", "Sicilian", "Sicilian", "Sicilian", "Sicilian, Boleslavsky Variation, 7.Nb3", "Sicilian, Richter-Rauzer", "Sicilian, Richter-Rauzer, Larsen Variation, 7.Qd2", "Sicilian, Richter-Rauzer", "Sicilian, Richter-Rauzer Attack", "Sicilian, Richter-Rauzer Attack", "Sicilian, Richter-Rauzer Attack, 7...Be7 Defense, 9...Nxd4", "Sicilian, Richter-Rauzer Attack, 7...a6", "Sicilian, Richter-Rauzer Attack, 7...a6 Defense, 8...Bd7", "Sicilian, Richter-Rauzer Attack, 7...a6 Defense, 9...Be7", "Sicilian, Richter-Rauzer Attack, 7...a6 Defense, 11.Bxf6", "Sicilian, Dragon Variation", "Sicilian, Dragon, Levenfish Variation", "Sicilian, Dragon", "Sicilian, Dragon, Classical", "Sicilian, Dragon, Classical", "Sicilian, Dragon, Yugoslav Attack", "Sicilian, Dragon, Yugoslav Attack", "Sicilian, Dragon, Yugoslav Attack", "Sicilian, Dragon, Yugoslav Attack, 10.castle long", "Sicilian, Dragon, Yugoslav Attack, 12.h4", "Sicilian, Scheveningen", "Sicilian, Scheveningen, Keres Attack", "Sicilian, Scheveningen", "Sicilian", "Sicilian, Scheveningen", "Sicilian, Scheveningen, Classical", "Sicilian, Fischer-Sozin Attack", "Sicilian, Fischer-Sozin with ...a6 and ...b5", "Sicilian, Fischer-Sozin Attack", "Sicilian", "Sicilian, Najdorf", "Sicilian, Najdorf, Zagreb (Fianchetto) Variation", "Sicilian, Najdorf, Opocensky Variation", "Sicilian, Najdorf, 6.f4", "Sicilian, Najdorf", "Sicilian, Najdorf, 6...e6", "Sicilian, Najdorf", "Sicilian, Najdorf", "Sicilian, Najdorf", "Sicilian, Najdorf, 7...Be7 Main line"],
+    ["French, Tarrasch, Open Variation, Main line", "French, Exchange", "French, Advance", "French, Tarrasch", "French, Tarrasch, Guimard Main line", "French, Tarrasch", "French, Tarrasch", "French, Tarrasch", null, null, "French", "French", "French, McCutcheon", "French", "French, Classical", "French, Winawer", "French, Winawer", "French, Winawer, Advance", "French, Winawer", "French, Winawer, Advance", "King's Pawn Game", "Center Game", "Center Game", "Bishop's Opening", "Bishop's Opening", "Vienna", "Vienna", "Vienna Game", "Vienna Game", "Vienna Gambit", "King's Gambit Declined", "King's Gambit Declined, Falkbeer Counter Gambit", "King's Gambit Declined, Falkbeer Counter Gambit", "King's Gambit Accepted", "King's Gambit Accepted", "King's Gambit Accepted, Cunningham", "King's Gambit Accepted, Abbazia Defense", "King's Gambit Accepted", "King's Gambit Accepted", "King's Gambit Accepted", "King's Knight Opening", "Philidor Defense", "Petrov Defense", "Petrov, Modern Attack", "King's Pawn Game", "Scotch Game", "Three Knights", "Four Knights", "Four Knights", "Four Knights", "Giuoco Piano", "Evans Gambit", "Evans Gambit", "Giuoco Piano", "Giuoco Piano", "Two Knights Defense", "Two Knights", "Two Knights", "Two Knights", "Two Knights", "Ruy Lopez", "Ruy Lopez, Bird's Defense", "Ruy Lopez, Old Steinitz Defense", "Ruy Lopez, Schliemann Defense", "Ruy Lopez, Classical", "Ruy Lopez, Berlin Defense", "Ruy Lopez", "Ruy Lopez", "Ruy Lopez, Exchange", "Ruy Lopez, Exchange, Gligoric Variation, 6.d4", "Ruy Lopez", "Ruy Lopez", "Ruy Lopez, Modern Steinitz Defense, 5.O-O", "Ruy Lopez, Modern Steinitz Defense", "Ruy Lopez, Modern Steinitz Defense", "Ruy Lopez, Modern Steinitz Defense", "Ruy Lopez, Modern Steinitz Defense, Fianchetto Variation", "Ruy Lopez", "Ruy Lopez", "Ruy Lopez, Steinitz Defense Deferred", "Ruy Lopez, Open", "Ruy Lopez, Open, Howell Attack", "Ruy Lopez, Open", "Ruy Lopez, Open", "Ruy Lopez, Closed", "Ruy Lopez, Exchange Variation Doubly Deferred (DERLD)", "Ruy Lopez, Worrall Attack", "Ruy Lopez", "Ruy Lopez", "Ruy Lopez, Marshall", "Ruy Lopez, Closed", "Ruy Lopez, Closed", "Ruy Lopez, Closed", "Ruy Lopez, Closed, Smyslov Defense", "Ruy Lopez, Closed, Breyer Defense", "Ruy Lopez, Closed, Breyer", "Ruy Lopez, Closed", "Ruy Lopez, Closed, Chigorin", "Ruy Lopez, Closed, Chigorin", "Ruy Lopez, Closed, Chigorin, 12...cd"],
+    ["Queen's Gambit Declined, Albin Counter Gambit, 5.g3", "Richter-Veresov Attack", "Queen's Pawn Game", "Torre Attack (Tartakower Variation)", "Queen's Pawn Game", "Queen's Pawn Game", "Queen's Gambit Declined", "Queen's Gambit Declined, Chigorin Defense", null, null, "Queen's Gambit Declined Slav", "Queen's Gambit Declined Slav", "Queen's Gambit Declined Slav", "Queen's Gambit Declined Slav, Exchange Variation", "Queen's Gambit Declined Slav, Exchange Variation", "Queen's Gambit Declined Slav", "Queen's Gambit Declined Slav", "Queen's Gambit Declined Slav", "Queen's Gambit Declined Slav, Dutch", "Queen's Gambit Declined Slav, Dutch", "Queen's Gambit Accepted", "Queen's Gambit Accepted", "Queen's Gambit Accepted", "Queen's Gambit Accepted", "Queen's Gambit Accepted", "Queen's Gambit Accepted", "Queen's Gambit Accepted", "Queen's Gambit Accepted, Classical", "Queen's Gambit Accepted, Classical", "Queen's Gambit Accepted, Classical", "Queen's Gambit Declined", "Queen's Gambit Declined", "Queen's Gambit Declined, Tarrasch", "Queen's Gambit Declined, Tarrasch", "Queen's Gambit Declined, Tarrasch", "Queen's Gambit Declined", "Queen's Gambit Declined, Exchange, Positional line, 6.Qc2", "Queen's Gambit Declined", "Queen's Gambit Declined, Ragozin Variation", "Queen's Gambit Declined, Ragozin, Vienna Variation", "Queen's Gambit Declined, Semi-Tarrasch", "Queen's Gambit Declined, Semi-Tarrasch", "Queen's Gambit Declined, Semi-Tarrasch, 7.Bd3", "Queen's Gambit Declined Semi-Slav", "Queen's Gambit Declined Semi-Slav", "Queen's Gambit Declined Semi-Slav", "Queen's Gambit Declined Semi-Slav", "Queen's Gambit Declined Semi-Slav", "Queen's Gambit Declined Semi-Slav, Meran", "Queen's Gambit Declined Semi-Slav, Meran", "Queen's Gambit Declined", "Queen's Gambit Declined", "Queen's Gambit Declined", "Queen's Gambit Declined", "Queen's Gambit Declined, Anti-Neo-Orthodox Variation", "Queen's Gambit Declined", "Queen's Gambit Declined", "Queen's Gambit Declined, Lasker Defense", "Queen's Gambit Declined, Tartakower (Makagonov-Bondarevsky) System", "Queen's Gambit Declined, Tartakower", "Queen's Gambit Declined, Orthodox Defense", "Queen's Gambit Declined, Orthodox, Rubinstein Attack", "Queen's Gambit Declined, Orthodox, Rubinstein Attack", "Queen's Gambit Declined, Orthodox Defense", "Queen's Gambit Declined, Orthodox, Rubinstein Attack", "Queen's Gambit Declined, Orthodox, Rubinstein Attack, Main line", "Queen's Gambit Declined, Orthodox Defense, Bd3 line", "Queen's Gambit Declined, Orthodox Defense, Bd3 line", "Queen's Gambit Declined, Orthodox Defense, Classical", "Queen's Gambit Declined, Orthodox Defense, Classical, 13.de", "Neo-Grunfeld Defense", "Neo-Grunfeld", "Neo-Grunfeld, 5.cd, Main line", "Neo-Grunfeld, 5.Nf3", "Neo-Grunfeld, 6.cd Nxd5, 7.O-O", "Neo-Grunfeld, 6.cd Nxd5, 7.O-O c5, 8.dxc5", "Neo-Grunfeld, 6.cd Nxd5, 7.O-O Nb6", "Neo-Grunfeld, 6.O-O", "Neo-Grunfeld, 6.O-O c6", "Neo-Grunfeld, 6.O-O, Main line", "Grunfeld", "Grunfeld, Russian Variation", "Grunfeld, 4.Bf4", "Grunfeld, Grunfeld Gambit", "Grunfeld, Grunfeld Gambit Accepted", "Grunfeld", "Grunfeld, Exchange", "Grunfeld, Exchange", "Grunfeld, Spassky Variation, Main line, 10...cd, 11.cd", "Grunfeld", "Grunfeld", "Grunfeld, 5.Bg5", "Grunfeld, 5.Bf4", "Grunfeld, with Bf4 & e3", "Grunfeld", "Grunfeld", "Grunfeld, Russian Variation", "Grunfeld, Russian", "Grunfeld, Russian", "Grunfeld Defense, Smyslov"],
+    ["Catalan, Closed", "Catalan, Closed", "Catalan, Open, 5.Qa4", "Catalan, Open", "Catalan, Open, 5.Nf3", "Catalan, Open, Classical line", "Catalan, Closed, 5.Nf3", "Catalan, Closed", null, null, "Queen's Pawn Game", "Bogo-Indian Defense", "Queen's Indian", "Queen's Indian, 4.Nc3, Main line", "Queen's Indian", "Queen's Indian", "Queen's Indian", "Queen's Indian", "Queen's Indian, Old Main line, 7.Nc3", "Queen's Indian, Old Main line, 9.Qxc3", "Nimzo-Indian", "Nimzo-Indian, Three Knights", "Nimzo-Indian, Spielmann Variation", "Nimzo-Indian, Spielmann", "Nimzo-Indian, Samisch", "Nimzo-Indian, Samisch", "Nimzo-Indian, Samisch", "Nimzo-Indian, Samisch Variation", "Nimzo-Indian, Samisch Variation", "Nimzo-Indian, Samisch", "Nimzo-Indian, Leningrad", "Nimzo-Indian, Leningrad, Main line", "Nimzo-Indian, Classical", "Nimzo-Indian, Classical", "Nimzo-Indian, Classical, Noa Variation", "Nimzo-Indian, Classical, Noa Variation, 5.cd ed", "Nimzo-Indian, Classical", "Nimzo-Indian, Classical", "Nimzo-Indian, Classical, 4...c5", "Nimzo-Indian, Classical, Pirc Variation", "Nimzo-Indian, 4.e3", "Nimzo-Indian", "Nimzo-Indian, 4.e3 c5, 5.Ne2 (Rubinstein)", "Nimzo-Indian, Fischer Variation", "Nimzo-Indian, Fischer Variation, 5.Ne2", "Nimzo-Indian, 4.e3, Bronstein (Byrne) Variation", "Nimzo-Indian", "Nimzo-Indian, 4.e3 O-O 5.Bd3", "Nimzo-Indian, 4.e3 O-O 5.Bd3 d5", "Nimzo-Indian, 4.e3, Botvinnik System", "Nimzo-Indian, 4.e3 O-O 5.Nf3, without ...d5", "Nimzo-Indian, 4.e3", "Nimzo-Indian, 4.e3, Main line with ...b6", "Nimzo-Indian, 4.e3", "Nimzo-Indian, 4.e3, Gligoric System", "Nimzo-Indian, 4.e3, Gligoric System, Bronstein Variation", "Nimzo-Indian, 4.e3, Main line with 7...Nc6", "Nimzo-Indian, 4.e3, Main line with 8...dc and 9...cd", "Nimzo-Indian, 4.e3, Main line with 8...Bxc3", "Nimzo-Indian, 4.e3, Main line", "King's Indian Defense", "King's Indian", "King's Indian, Fianchetto", "King's Indian, Fianchetto, Panno Variation", "King's Indian, Fianchetto, Yugoslav System", "King's Indian, Fianchetto, Yugoslav, 7.O-O", "King's Indian, Fianchetto, Yugoslav Panno", "King's Indian, Fianchetto", "King's Indian, Fianchetto, Classical Variation, 8.e4", "King's Indian, Fianchetto, Classical Main line", "King's Indian", "King's Indian, Makagonov System (5.h3)", "King's Indian", "King's Indian", "King's Indian, Averbakh, 6...c5", "King's Indian, Averbakh, Main line", "King's Indian, Four Pawns Attack", "King's Indian", "King's Indian, Four Pawns Attack, with Be2 and Nf3", "King's Indian, Four Pawns Attack, Main line", "King's Indian, Samisch Variation", "King's Indian, Samisch", "King's Indian, Samisch, double Fianchetto Variation", "King's Indian, Samisch", "King's Indian, Samisch, Panno Main line", "King's Indian, Samisch, Orthodox Variation", "King's Indian, Samisch, Orthodox, 7.Nge2 c6", "King's Indian, Samisch, Orthodox", "King's Indian, Samisch, Orthodox, 7.d5 c6", "King's Indian, Samisch, Orthodox Main line", "King's Indian", "King's Indian", "King's Indian", "King's Indian, Petrosian System", "King's Indian, Orthodox", "King's Indian, Orthodox, 7...Nbd7, 8.Re1", "King's Indian, Orthodox, 7...Nbd7, Main line", "King's Indian", "King's Indian, Orthodox, Taimanov, 9.Ne1", "King's Indian, Orthodox, Taimanov"]
+  ]
+  //ECO object
+  openings = {
+    "b3": {
+      "ECO": "A01"
+    },
+    "f4": {
+      "d5": {
+        "ECO": "A03"
+      },
+      "ECO": "A02"
+    },
+    "Nf3": {
+      "Nf6": {
+        "ECO": "A05"
+      },
+      "d5": {
+        "g3": {
+          "c5": {
+            "Bg2": {
+              "ECO": "A08"
+            }
+          },
+          "ECO": "A07"
+        },
+        "c4": {
+          "ECO": "A09"
+        },
+        "ECO": "A06"
+      },
+      "ECO": "A04"
+    },
+    "c4": {
+      "c6": {
+        "Nf3": {
+          "d5": {
+            "b3": {
+              "ECO": "A12"
+            }
+          }
+        },
+        "ECO": "A11"
+      },
+      "e6": {
+        "Nf3": {
+          "d5": {
+            "g3": {
+              "Nf6": {
+                "Bg2": {
+                  "Be7": {
+                    "OO": {
+                      "ECO": "A14"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "ECO": "A13"
+      },
+      "Nf6": {
+        "Nc3": {
+          "e6": {
+            "e4": {
+              "c5": {
+                "ECO": "A19"
+              },
+              "ECO": "A18"
+            },
+            "ECO": "A17"
+          },
+          "ECO": "A16"
+        },
+        "ECO": "A15"
+      },
+      "e5": {
+        "Nc3": {
+          "Nf6": {
+            "g3": {
+              "c6": {
+                "ECO": "A23"
+              },
+              "g6": {
+                "ECO": "A24"
+              }
+            },
+            "ECO": "A22"
+          },
+          "Nc6": {
+            "g3": {
+              "g6": {
+                "Bg2": {
+                  "Bg7": {
+                    "d3": {
+                      "d6": {
+                        "ECO": "A26"
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            "Nf3": {
+              "Nf6": {
+                "g3": {
+                  "ECO": "A29"
+                },
+                "ECO": "A28"
+              },
+              "ECO": "A27"
+            },
+            "ECO": "A25"
+          },
+          "ECO": "A21"
+        },
+        "ECO": "A20"
+      },
+      "c5": {
+        "Nf3": {
+          "Nf6": {
+            "d4": {
+              "cxd4": {
+                "Nxd4": {
+                  "e6": {
+                    "Nc3": {
+                      "Nc6": {
+                        "ECO": "A33"
+                      }
+                    },
+                    "ECO": "A32"
+                  }
+                }
+              },
+              "ECO": "A31"
+            }
+          }
+        },
+        "Nc3": {
+          "Nc6": {
+            "g3": {
+              "g6": {
+                "Bg2": {
+                  "Bg7": {
+                    "Nf3": {
+                      "Nf6": {
+                        "OO": {
+                          "OO": {
+                            "d4": {
+                              "ECO": "A39"
+                            }
+                          }
+                        },
+                        "ECO": "A38"
+                      },
+                      "ECO": "A37"
+                    }
+                  }
+                }
+              },
+              "ECO": "A36"
+            },
+            "ECO": "A35"
+          },
+          "ECO": "A34"
+        },
+        "ECO": "A30"
+      },
+      "ECO": "A10"
+    },
+    "d4": {
+      "d6": {
+        "c4": {
+          "g6": {
+            "Nc3": {
+              "Bg7": {
+                "e4": {
+                  "ECO": "A42"
+                }
+              }
+            }
+          }
+        },
+        "ECO": "A41"
+      },
+      "c5": {
+        "d5": {
+          "e5": {
+            "ECO": "A44"
+          }
+        },
+        "ECO": "A43"
+      },
+      "Nf6": {
+        "Nf3": {
+          "b6": {
+            "ECO": "A47"
+          },
+          "g6": {
+            "g3": {
+              "ECO": "A49"
+            },
+            "ECO": "A48"
+          },
+          "ECO": "A46"
+        },
+        "c4": {
+          "e5": {
+            "dxe5": {
+              "Ng4": {
+                "ECO": "A52"
+              }
+            },
+            "ECO": "A51"
+          },
+          "d6": {
+            "Nc3": {
+              "e5": {
+                "Nf3": {
+                  "Nbd7": {
+                    "e4": {
+                      "ECO": "A55"
+                    }
+                  },
+                  "ECO": "A54"
+                }
+              }
+            },
+            "ECO": "A53"
+          },
+          "c5": {
+            "d5": {
+              "b5": {
+                "cxb5": {
+                  "a6": {
+                    "bxa6": {
+                      "Bxa6": {
+                        "Nc3": {
+                          "d6": {
+                            "e4": {
+                              "ECO": "A59"
+                            }
+                          }
+                        }
+                      },
+                      "ECO": "A58"
+                    }
+                  }
+                },
+                "ECO": "A57"
+              },
+              "e6": {
+                "Nc3": {
+                  "exd5": {
+                    "cxd5": {
+                      "d6": {
+                        "Nf3": {
+                          "g6": {
+                            "g3": {
+                              "Bg7": {
+                                "Bg2": {
+                                  "OO": {
+                                    "ECO": "A64"
+                                  }
+                                }
+                              }
+                            },
+                            "ECO": "A61"
+                          }
+                        },
+                        "e4": {
+                          "g6": {
+                            "f4": {
+                              "Bg7": {
+                                "Bb5": {
+                                  "ECO": "A67"
+                                },
+                                "Nf3": {
+                                  "OO": {
+                                    "ECO": "A69"
+                                  }
+                                }
+                              },
+                              "ECO": "A66"
+                            },
+                            "Nf3": {
+                              "Bg7": {
+                                "Bg5": {
+                                  "ECO": "A71"
+                                },
+                                "Be2": {
+                                  "OO": {
+                                    "ECO": "A79"
+                                  }
+                                }
+                              },
+                              "ECO": "A70"
+                            }
+                          },
+                          "ECO": "A65"
+                        }
+                      }
+                    }
+                  }
+                },
+                "ECO": "A60"
+              }
+            },
+            "ECO": "A56"
+          },
+          "g6": {
+            "f3": {
+              "d5": {
+                "ECO": "D70"
+              }
+            },
+            "g3": {
+              "d5": {
+                "Bg2": {
+                  "Bg7": {
+                    "cxd5": {
+                      "Nxd5": {
+                        "e4": {
+                          "Nb6": {
+                            "Ne2": {
+                              "ECO": "D72"
+                            }
+                          }
+                        }
+                      }
+                    },
+                    "Nf3": {
+                      "OO": {
+                        "cxd5": {
+                          "Nxd5": {
+                            "OO": {
+                              "c5": {
+                                "dxc5": {
+                                  "ECO": "D75"
+                                }
+                              },
+                              "Nb6": {
+                                "ECO": "D76"
+                              },
+                              "ECO": "D74"
+                            }
+                          }
+                        },
+                        "OO": {
+                          "c6": {
+                            "cxd5": {
+                              "cxd5": {
+                                "ECO": "D79"
+                              }
+                            },
+                            "ECO": "D78"
+                          },
+                          "ECO": "D77"
+                        }
+                      },
+                      "ECO": "D73"
+                    }
+                  }
+                },
+                "ECO": "D71"
+              }
+            },
+            "Nc3": {
+              "d5": {
+                "Qb3": {
+                  "ECO": "D81"
+                },
+                "Bf4": {
+                  "Bg7": {
+                    "e3": {
+                      "OO": {
+                        "cxd5": {
+                          "Nxd5": {
+                            "Nxd5": {
+                              "Qxd5": {
+                                "Bxc7": {
+                                  "ECO": "D84"
+                                }
+                              }
+                            }
+                          }
+                        },
+                        "ECO": "D83"
+                      }
+                    }
+                  },
+                  "ECO": "D82"
+                },
+                "cxd5": {
+                  "Nxd5": {
+                    "e4": {
+                      "Nxc3": {
+                        "bxc3": {
+                          "Bg7": {
+                            "Bc4": {
+                              "OO": {
+                                "Ne2": {
+                                  "c5": {
+                                    "ECO": "D87"
+                                  },
+                                  "ECO": "D89"
+                                }
+                              },
+                              "ECO": "D86"
+                            }
+                          }
+                        }
+                      }
+                    },
+                    "ECO": "D85"
+                  }
+                },
+                "Nf3": {
+                  "Bg7": {
+                    "Bg5": {
+                      "ECO": "D91"
+                    },
+                    "Bf4": {
+                      "OO": {
+                        "e3": {
+                          "ECO": "D93"
+                        }
+                      },
+                      "ECO": "D92"
+                    },
+                    "e3": {
+                      "OO": {
+                        "Qb3": {
+                          "ECO": "D95"
+                        }
+                      },
+                      "ECO": "D94"
+                    },
+                    "Qb3": {
+                      "dxc4": {
+                        "Qxc4": {
+                          "OO": {
+                            "e4": {
+                              "Bg4": {
+                                "Be3": {
+                                  "ECO": "D99"
+                                },
+                                "ECO": "D98"
+                              },
+                              "ECO": "D97"
+                            }
+                          }
+                        }
+                      },
+                      "ECO": "D96"
+                    }
+                  },
+                  "ECO": "D90"
+                },
+                "ECO": "D80"
+              },
+              "Bg7": {
+                "Nf3": {
+                  "d6": {
+                    "g3": {
+                      "OO": {
+                        "Bg2": {
+                          "Nc6": {
+                            "OO": {
+                              "a6": {
+                                "ECO": "E63"
+                              }
+                            }
+                          },
+                          "c5": {
+                            "OO": {
+                              "Nc6": {
+                                "d5": {
+                                  "ECO": "E66"
+                                }
+                              },
+                              "ECO": "E65"
+                            },
+                            "ECO": "E64"
+                          },
+                          "Nbd7": {
+                            "OO": {
+                              "e5": {
+                                "e4": {
+                                  "c6": {
+                                    "h3": {
+                                      "ECO": "E69"
+                                    }
+                                  },
+                                  "ECO": "E68"
+                                }
+                              }
+                            },
+                            "ECO": "E67"
+                          }
+                        }
+                      },
+                      "ECO": "E62"
+                    }
+                  }
+                },
+                "e4": {
+                  "d6": {
+                    "h3": {
+                      "ECO": "E71"
+                    },
+                    "g3": {
+                      "ECO": "E72"
+                    },
+                    "Be2": {
+                      "OO": {
+                        "Bg5": {
+                          "c5": {
+                            "d5": {
+                              "e6": {
+                                "ECO": "E75"
+                              }
+                            },
+                            "ECO": "E74"
+                          }
+                        }
+                      },
+                      "ECO": "E73"
+                    },
+                    "f4": {
+                      "OO": {
+                        "Be2": {
+                          "c5": {
+                            "Nf3": {
+                              "cxd4": {
+                                "Nxd4": {
+                                  "Nc6": {
+                                    "Be3": {
+                                      "ECO": "E79"
+                                    }
+                                  }
+                                }
+                              },
+                              "ECO": "E78"
+                            }
+                          },
+                          "ECO": "E77"
+                        }
+                      },
+                      "ECO": "E76"
+                    },
+                    "f3": {
+                      "OO": {
+                        "Be3": {
+                          "b6": {
+                            "ECO": "E82"
+                          },
+                          "Nc6": {
+                            "Nge2": {
+                              "a6": {
+                                "Qd2": {
+                                  "Rb8": {
+                                    "ECO": "E84"
+                                  }
+                                }
+                              }
+                            },
+                            "ECO": "E83"
+                          },
+                          "e5": {
+                            "Nge2": {
+                              "c6": {
+                                "ECO": "E86"
+                              }
+                            },
+                            "d5": {
+                              "c6": {
+                                "Nge2": {
+                                  "cxd5": {
+                                    "ECO": "E89"
+                                  }
+                                },
+                                "ECO": "E88"
+                              },
+                              "ECO": "E87"
+                            },
+                            "ECO": "E85"
+                          }
+                        },
+                        "ECO": "E81"
+                      },
+                      "ECO": "E80"
+                    },
+                    "Nf3": {
+                      "OO": {
+                        "Be2": {
+                          "e5": {
+                            "d5": {
+                              "Nbd7": {
+                                "ECO": "E93"
+                              }
+                            },
+                            "OO": {
+                              "Nbd7": {
+                                "Re1": {
+                                  "c6": {
+                                    "Bf1": {
+                                      "a5": {
+                                        "ECO": "E96"
+                                      }
+                                    }
+                                  },
+                                  "ECO": "E95"
+                                }
+                              },
+                              "Nc6": {
+                                "d5": {
+                                  "Ne7": {
+                                    "Ne1": {
+                                      "Nd7": {
+                                        "f3": {
+                                          "f5": {
+                                            "ECO": "E99"
+                                          }
+                                        }
+                                      },
+                                      "ECO": "E98"
+                                    }
+                                  }
+                                },
+                                "ECO": "E97"
+                              },
+                              "ECO": "E94"
+                            },
+                            "ECO": "E92"
+                          },
+                          "ECO": "E91"
+                        }
+                      },
+                      "ECO": "E90"
+                    }
+                  },
+                  "ECO": "E70"
+                }
+              },
+              "ECO": "E61"
+            },
+            "ECO": "E60"
+          },
+          "e6": {
+            "g3": {
+              "d5": {
+                "Bg2": {
+                  "dxc4": {
+                    "Qa4": {
+                      "Nbd7": {
+                        "Qxc4": {
+                          "ECO": "E03"
+                        }
+                      },
+                      "ECO": "E02"
+                    },
+                    "Nf3": {
+                      "Be7": {
+                        "ECO": "E05"
+                      },
+                      "ECO": "E04"
+                    }
+                  },
+                  "Be7": {
+                    "Nf3": {
+                      "OO": {
+                        "OO": {
+                          "Nbd7": {
+                            "Qc2": {
+                              "c6": {
+                                "Nbd2": {
+                                  "ECO": "E09"
+                                }
+                              },
+                              "ECO": "E08"
+                            },
+                            "ECO": "E07"
+                          }
+                        }
+                      },
+                      "ECO": "E06"
+                    }
+                  },
+                  "ECO": "E01"
+                }
+              }
+            },
+            "Nf3": {
+              "Bb4": {
+                "ECO": "E11"
+              },
+              "b6": {
+                "Nc3": {
+                  "Bb7": {
+                    "Bg5": {
+                      "h6": {
+                        "Bh4": {
+                          "Bb4": {
+                            "ECO": "E13"
+                          }
+                        }
+                      }
+                    }
+                  }
+                },
+                "e3": {
+                  "ECO": "E14"
+                },
+                "g3": {
+                  "Bb7": {
+                    "Bg2": {
+                      "Bb4": {
+                        "ECO": "E16"
+                      },
+                      "Be7": {
+                        "OO": {
+                          "OO": {
+                            "Nc3": {
+                              "Ne4": {
+                                "Qc2": {
+                                  "Nxc3": {
+                                    "ECO": "E19"
+                                  }
+                                }
+                              },
+                              "ECO": "E18"
+                            }
+                          }
+                        },
+                        "ECO": "E17"
+                      }
+                    }
+                  },
+                  "ECO": "E15"
+                },
+                "ECO": "E12"
+              },
+              "ECO": "E10"
+            },
+            "Nc3": {
+              "Bb4": {
+                "Nf3": {
+                  "ECO": "E21"
+                },
+                "Qb3": {
+                  "c5": {
+                    "dxc5": {
+                      "Nc6": {
+                        "ECO": "E23"
+                      }
+                    }
+                  },
+                  "ECO": "E22"
+                },
+                "a3": {
+                  "Bxc3": {
+                    "bxc3": {
+                      "c5": {
+                        "f3": {
+                          "d5": {
+                            "cxd5": {
+                              "ECO": "E25"
+                            }
+                          }
+                        },
+                        "e3": {
+                          "ECO": "E26"
+                        }
+                      },
+                      "OO": {
+                        "e3": {
+                          "c5": {
+                            "Bd3": {
+                              "Nc6": {
+                                "ECO": "E29"
+                              }
+                            }
+                          },
+                          "ECO": "E28"
+                        },
+                        "ECO": "E27"
+                      },
+                      "ECO": "E24"
+                    }
+                  }
+                },
+                "Bg5": {
+                  "h6": {
+                    "Bh4": {
+                      "c5": {
+                        "d5": {
+                          "d6": {
+                            "ECO": "E31"
+                          }
+                        }
+                      }
+                    }
+                  },
+                  "ECO": "E30"
+                },
+                "Qc2": {
+                  "Nc6": {
+                    "ECO": "E33"
+                  },
+                  "d5": {
+                    "cxd5": {
+                      "exd5": {
+                        "ECO": "E35"
+                      }
+                    },
+                    "a3": {
+                      "Bxc3": {
+                        "Qxc3": {
+                          "Ne4": {
+                            "Qc2": {
+                              "ECO": "E37"
+                            }
+                          }
+                        }
+                      },
+                      "ECO": "E36"
+                    },
+                    "ECO": "E34"
+                  },
+                  "c5": {
+                    "dxc5": {
+                      "OO": {
+                        "ECO": "E39"
+                      }
+                    },
+                    "ECO": "E38"
+                  },
+                  "ECO": "E32"
+                },
+                "e3": {
+                  "c5": {
+                    "Ne2": {
+                      "ECO": "E42"
+                    },
+                    "ECO": "E41"
+                  },
+                  "b6": {
+                    "Ne2": {
+                      "Ba6": {
+                        "ECO": "E45"
+                      },
+                      "ECO": "E44"
+                    },
+                    "ECO": "E43"
+                  },
+                  "OO": {
+                    "Bd3": {
+                      "d5": {
+                        "a3": {
+                          "Bxc3": {
+                            "bxc3": {
+                              "ECO": "E49"
+                            }
+                          }
+                        },
+                        "ECO": "E48"
+                      },
+                      "ECO": "E47"
+                    },
+                    "Nf3": {
+                      "d5": {
+                        "Bd3": {
+                          "b6": {
+                            "ECO": "E52"
+                          },
+                          "c5": {
+                            "OO": {
+                              "dxc4": {
+                                "Bxc4": {
+                                  "Nbd7": {
+                                    "ECO": "E55"
+                                  },
+                                  "ECO": "E54"
+                                }
+                              },
+                              "Nc6": {
+                                "a3": {
+                                  "dxc4": {
+                                    "ECO": "E57"
+                                  },
+                                  "Bxc3": {
+                                    "bxc3": {
+                                      "dxc4": {
+                                        "Bxc4": {
+                                          "ECO": "E59"
+                                        }
+                                      },
+                                      "ECO": "E58"
+                                    }
+                                  }
+                                },
+                                "ECO": "E56"
+                              }
+                            },
+                            "ECO": "E53"
+                          }
+                        },
+                        "ECO": "E51"
+                      },
+                      "ECO": "E50"
+                    },
+                    "ECO": "E46"
+                  },
+                  "ECO": "E40"
+                },
+                "ECO": "E20"
+              }
+            },
+            "ECO": "E00"
+          },
+          "ECO": "A50"
+        },
+        "ECO": "A45"
+      },
+      "f5": {
+        "g3": {
+          "ECO": "A81"
+        },
+        "e4": {
+          "fxe4": {
+            "Nc3": {
+              "Nf6": {
+                "Bg5": {
+                  "ECO": "A83"
+                }
+              }
+            }
+          },
+          "ECO": "A82"
+        },
+        "c4": {
+          "Nf6": {
+            "Nc3": {
+              "ECO": "A85"
+            },
+            "g3": {
+              "g6": {
+                "Bg2": {
+                  "Bg7": {
+                    "Nf3": {
+                      "OO": {
+                        "OO": {
+                          "d6": {
+                            "Nc3": {
+                              "c6": {
+                                "ECO": "A88"
+                              },
+                              "Nc6": {
+                                "ECO": "A89"
+                              }
+                            }
+                          }
+                        }
+                      },
+                      "ECO": "A87"
+                    }
+                  }
+                }
+              },
+              "e6": {
+                "Bg2": {
+                  "Be7": {
+                    "Nf3": {
+                      "OO": {
+                        "OO": {
+                          "d5": {
+                            "b3": {
+                              "c6": {
+                                "Ba3": {
+                                  "ECO": "A94"
+                                }
+                              },
+                              "ECO": "A93"
+                            },
+                            "Nc3": {
+                              "c6": {
+                                "ECO": "A95"
+                              }
+                            }
+                          },
+                          "d6": {
+                            "Nc3": {
+                              "Qe8": {
+                                "Qc2": {
+                                  "ECO": "A98"
+                                },
+                                "b3": {
+                                  "ECO": "A99"
+                                },
+                                "ECO": "A97"
+                              }
+                            },
+                            "ECO": "A96"
+                          }
+                        },
+                        "ECO": "A92"
+                      }
+                    },
+                    "ECO": "A91"
+                  },
+                  "ECO": "A90"
+                }
+              },
+              "ECO": "A86"
+            }
+          },
+          "ECO": "A84"
+        },
+        "ECO": "A80"
+      },
+      "d5": {
+        "Nc3": {
+          "Nf6": {
+            "Bg5": {
+              "ECO": "D01"
+            }
+          }
+        },
+        "Nf3": {
+          "Nf6": {
+            "Bg5": {
+              "ECO": "D03"
+            },
+            "e3": {
+              "e6": {
+                "ECO": "D05"
+              },
+              "ECO": "D04"
+            }
+          },
+          "ECO": "D02"
+        },
+        "c4": {
+          "Nc6": {
+            "ECO": "D07"
+          },
+          "e5": {
+            "dxe5": {
+              "d4": {
+                "Nf3": {
+                  "Nc6": {
+                    "g3": {
+                      "ECO": "D09"
+                    }
+                  }
+                }
+              }
+            },
+            "ECO": "D08"
+          },
+          "c6": {
+            "Nf3": {
+              "Nf6": {
+                "e3": {
+                  "Bf5": {
+                    "ECO": "D12"
+                  }
+                },
+                "cxd5": {
+                  "cxd5": {
+                    "Nc3": {
+                      "Nc6": {
+                        "Bf4": {
+                          "Bf5": {
+                            "ECO": "D14"
+                          }
+                        }
+                      }
+                    },
+                    "ECO": "D13"
+                  }
+                },
+                "Nc3": {
+                  "dxc4": {
+                    "a4": {
+                      "Bf5": {
+                        "e3": {
+                          "e6": {
+                            "Bxc4": {
+                              "Bb4": {
+                                "OO": {
+                                  "OO": {
+                                    "Qe2": {
+                                      "ECO": "D19"
+                                    }
+                                  }
+                                }
+                              }
+                            }
+                          },
+                          "ECO": "D18"
+                        },
+                        "ECO": "D17"
+                      },
+                      "ECO": "D16"
+                    }
+                  },
+                  "ECO": "D15"
+                }
+              },
+              "ECO": "D11"
+            },
+            "ECO": "D10"
+          },
+          "dxc4": {
+            "Nf3": {
+              "a6": {
+                "e3": {
+                  "Bg4": {
+                    "Bxc4": {
+                      "e6": {
+                        "d5": {
+                          "ECO": "D22"
+                        }
+                      }
+                    }
+                  }
+                }
+              },
+              "Nf6": {
+                "Nc3": {
+                  "ECO": "D24"
+                },
+                "e3": {
+                  "e6": {
+                    "Bxc4": {
+                      "c5": {
+                        "OO": {
+                          "a6": {
+                            "Qe2": {
+                              "b5": {
+                                "Bb3": {
+                                  "Bb7": {
+                                    "ECO": "D29"
+                                  }
+                                }
+                              },
+                              "ECO": "D28"
+                            },
+                            "ECO": "D27"
+                          }
+                        }
+                      }
+                    },
+                    "ECO": "D26"
+                  },
+                  "ECO": "D25"
+                },
+                "ECO": "D23"
+              },
+              "ECO": "D21"
+            },
+            "ECO": "D20"
+          },
+          "e6": {
+            "Nc3": {
+              "c5": {
+                "cxd5": {
+                  "exd5": {
+                    "Nf3": {
+                      "Nc6": {
+                        "g3": {
+                          "Nf6": {
+                            "Bg2": {
+                              "Be7": {
+                                "ECO": "D34"
+                              }
+                            }
+                          },
+                          "ECO": "D33"
+                        }
+                      }
+                    }
+                  }
+                },
+                "ECO": "D32"
+              },
+              "Nf6": {
+                "cxd5": {
+                  "exd5": {
+                    "Bg5": {
+                      "c6": {
+                        "Qc2": {
+                          "ECO": "D36"
+                        }
+                      }
+                    }
+                  }
+                },
+                "Nf3": {
+                  "Bb4": {
+                    "Bg5": {
+                      "dxc4": {
+                        "ECO": "D39"
+                      }
+                    },
+                    "ECO": "D38"
+                  },
+                  "c5": {
+                    "cxd5": {
+                      "Nxd5": {
+                        "e3": {
+                          "Nc6": {
+                            "Bd3": {
+                              "ECO": "D42"
+                            }
+                          }
+                        }
+                      },
+                      "ECO": "D41"
+                    },
+                    "ECO": "D40"
+                  },
+                  "c6": {
+                    "Bg5": {
+                      "dxc4": {
+                        "ECO": "D44"
+                      }
+                    },
+                    "e3": {
+                      "Nbd7": {
+                        "Bd3": {
+                          "dxc4": {
+                            "Bxc4": {
+                              "b5": {
+                                "Bd3": {
+                                  "a6": {
+                                    "e4": {
+                                      "c5": {
+                                        "e5": {
+                                          "cxd4": {
+                                            "Nxb5": {
+                                              "ECO": "D49"
+                                            }
+                                          }
+                                        }
+                                      }
+                                    },
+                                    "ECO": "D48"
+                                  }
+                                }
+                              },
+                              "ECO": "D47"
+                            }
+                          },
+                          "ECO": "D46"
+                        }
+                      },
+                      "ECO": "D45"
+                    },
+                    "ECO": "D43"
+                  },
+                  "ECO": "D37"
+                },
+                "Bg5": {
+                  "Nbd7": {
+                    "e3": {
+                      "c6": {
+                        "Nf3": {
+                          "ECO": "D52"
+                        }
+                      }
+                    },
+                    "ECO": "D51"
+                  },
+                  "Be7": {
+                    "e3": {
+                      "OO": {
+                        "Rc1": {
+                          "ECO": "D54"
+                        },
+                        "Nf3": {
+                          "h6": {
+                            "Bh4": {
+                              "Ne4": {
+                                "Bxe7": {
+                                  "Qxe7": {
+                                    "ECO": "D57"
+                                  }
+                                }
+                              },
+                              "b6": {
+                                "cxd5": {
+                                  "Nxd5": {
+                                    "ECO": "D59"
+                                  }
+                                },
+                                "ECO": "D58"
+                              },
+                              "ECO": "D56"
+                            }
+                          },
+                          "Nbd7": {
+                            "Qc2": {
+                              "c5": {
+                                "cxd5": {
+                                  "ECO": "D62"
+                                }
+                              },
+                              "ECO": "D61"
+                            },
+                            "Rc1": {
+                              "c6": {
+                                "Qc2": {
+                                  "a6": {
+                                    "cxd5": {
+                                      "ECO": "D65"
+                                    }
+                                  },
+                                  "ECO": "D64"
+                                },
+                                "Bd3": {
+                                  "dxc4": {
+                                    "Bxc4": {
+                                      "Nd5": {
+                                        "ECO": "D67"
+                                      }
+                                    },
+                                    "ECO": "D69"
+                                  },
+                                  "ECO": "D66"
+                                }
+                              },
+                              "ECO": "D63"
+                            },
+                            "ECO": "D60"
+                          },
+                          "ECO": "D55"
+                        }
+                      }
+                    },
+                    "ECO": "D53"
+                  },
+                  "ECO": "D50"
+                },
+                "ECO": "D35"
+              },
+              "ECO": "D31"
+            },
+            "ECO": "D30"
+          },
+          "ECO": "D06"
+        },
+        "ECO": "D00"
+      },
+      "ECO": "A40"
+    },
+    "e4": {
+      "d5": {
+        "ECO": "B01"
+      },
+      "Nf6": {
+        "e5": {
+          "Nd5": {
+            "d4": {
+              "d6": {
+                "Nf3": {
+                  "Bg4": {
+                    "ECO": "B05"
+                  },
+                  "ECO": "B04"
+                }
+              },
+              "ECO": "B03"
+            }
+          }
+        },
+        "ECO": "B02"
+      },
+      "g6": {
+        "ECO": "B06"
+      },
+      "d6": {
+        "d4": {
+          "Nf6": {
+            "Nc3": {
+              "g6": {
+                "Nf3": {
+                  "ECO": "B08"
+                },
+                "f4": {
+                  "ECO": "B09"
+                }
+              }
+            },
+            "ECO": "B07"
+          }
+        }
+      },
+      "c6": {
+        "Nc3": {
+          "d5": {
+            "Nf3": {
+              "Bg4": {
+                "ECO": "B11"
+              }
+            }
+          }
+        },
+        "d4": {
+          "d5": {
+            "exd5": {
+              "cxd5": {
+                "c4": {
+                  "Nf6": {
+                    "Nc3": {
+                      "e6": {
+                        "ECO": "B14"
+                      }
+                    }
+                  }
+                },
+                "ECO": "B13"
+              }
+            },
+            "Nc3": {
+              "dxe4": {
+                "Nxe4": {
+                  "Nf6": {
+                    "Nxf6": {
+                      "gxf6": {
+                        "ECO": "B16"
+                      }
+                    }
+                  },
+                  "Nd7": {
+                    "ECO": "B17"
+                  },
+                  "Bf5": {
+                    "Ng3": {
+                      "Bg6": {
+                        "h4": {
+                          "h6": {
+                            "Nf3": {
+                              "Nd7": {
+                                "ECO": "B19"
+                              }
+                            }
+                          }
+                        }
+                      }
+                    },
+                    "ECO": "B18"
+                  }
+                }
+              },
+              "ECO": "B15"
+            }
+          },
+          "ECO": "B12"
+        },
+        "ECO": "B10"
+      },
+      "c5": {
+        "f4": {
+          "ECO": "B21"
+        },
+        "c3": {
+          "ECO": "B22"
+        },
+        "Nc3": {
+          "Nc6": {
+            "g3": {
+              "g6": {
+                "Bg2": {
+                  "Bg7": {
+                    "d3": {
+                      "d6": {
+                        "Be3": {
+                          "ECO": "B26"
+                        },
+                        "ECO": "B25"
+                      }
+                    }
+                  }
+                }
+              },
+              "ECO": "B24"
+            }
+          },
+          "ECO": "B23"
+        },
+        "Nf3": {
+          "a6": {
+            "ECO": "B28"
+          },
+          "Nf6": {
+            "ECO": "B29"
+          },
+          "Nc6": {
+            "Bb5": {
+              "g6": {
+                "ECO": "B31"
+              }
+            },
+            "d4": {
+              "cxd4": {
+                "Nxd4": {
+                  "e5": {
+                    "ECO": "B32"
+                  },
+                  "g6": {
+                    "Nxc6": {
+                      "ECO": "B34"
+                    },
+                    "Nc3": {
+                      "Bg7": {
+                        "Be3": {
+                          "Nf6": {
+                            "Bc4": {
+                              "ECO": "B35"
+                            }
+                          }
+                        }
+                      }
+                    },
+                    "c4": {
+                      "Bg7": {
+                        "Be3": {
+                          "Nf6": {
+                            "Nc3": {
+                              "Ng4": {
+                                "ECO": "B39"
+                              }
+                            }
+                          },
+                          "ECO": "B38"
+                        },
+                        "ECO": "B37"
+                      },
+                      "ECO": "B36"
+                    }
+                  },
+                  "Nf6": {
+                    "Nc3": {
+                      "d6": {
+                        "Be2": {
+                          "e5": {
+                            "Nb3": {
+                              "ECO": "B59"
+                            }
+                          },
+                          "ECO": "B58"
+                        }
+                      }
+                    }
+                  },
+                  "ECO": "B33"
+                }
+              }
+            },
+            "ECO": "B30"
+          },
+          "e6": {
+            "d4": {
+              "cxd4": {
+                "Nxd4": {
+                  "a6": {
+                    "Bd3": {
+                      "ECO": "B42"
+                    },
+                    "Nc3": {
+                      "ECO": "B43"
+                    },
+                    "ECO": "B41"
+                  },
+                  "Nc6": {
+                    "Nc3": {
+                      "a6": {
+                        "ECO": "B46"
+                      },
+                      "Qc7": {
+                        "Be3": {
+                          "a6": {
+                            "Be2": {
+                              "ECO": "B49"
+                            }
+                          },
+                          "ECO": "B48"
+                        },
+                        "ECO": "B47"
+                      },
+                      "ECO": "B45"
+                    },
+                    "ECO": "B44"
+                  }
+                }
+              }
+            },
+            "ECO": "B40"
+          },
+          "d6": {
+            "Bb5": {
+              "Bd7": {
+                "ECO": "B52"
+              },
+              "ECO": "B51"
+            },
+            "d4": {
+              "cxd4": {
+                "Qxd4": {
+                  "ECO": "B53"
+                },
+                "Nxd4": {
+                  "Nf6": {
+                    "f3": {
+                      "e5": {
+                        "Bb5": {
+                          "ECO": "B55"
+                        }
+                      }
+                    },
+                    "Nc3": {
+                      "Nc6": {
+                        "Bc4": {
+                          "ECO": "B57"
+                        },
+                        "Bg5": {
+                          "Bd7": {
+                            "Qd2": {
+                              "ECO": "B61"
+                            }
+                          },
+                          "e6": {
+                            "Qd2": {
+                              "Be7": {
+                                "OOO": {
+                                  "OO": {
+                                    "f4": {
+                                      "Nxd4": {
+                                        "Qxd4": {
+                                          "ECO": "B65"
+                                        }
+                                      },
+                                      "ECO": "B64"
+                                    }
+                                  }
+                                }
+                              },
+                              "a6": {
+                                "OOO": {
+                                  "Bd7": {
+                                    "f4": {
+                                      "Be7": {
+                                        "Nf3": {
+                                          "b5": {
+                                            "Bxf6": {
+                                              "ECO": "B69"
+                                            }
+                                          }
+                                        },
+                                        "ECO": "B68"
+                                      }
+                                    },
+                                    "ECO": "B67"
+                                  }
+                                },
+                                "ECO": "B66"
+                              },
+                              "ECO": "B63"
+                            },
+                            "ECO": "B62"
+                          },
+                          "ECO": "B60"
+                        }
+                      },
+                      "g6": {
+                        "f4": {
+                          "ECO": "B71"
+                        },
+                        "Be3": {
+                          "Bg7": {
+                            "Be2": {
+                              "Nc6": {
+                                "OO": {
+                                  "OO": {
+                                    "Nb3": {
+                                      "ECO": "B74"
+                                    }
+                                  },
+                                  "ECO": "B73"
+                                }
+                              }
+                            },
+                            "f3": {
+                              "OO": {
+                                "Qd2": {
+                                  "Nc6": {
+                                    "Bc4": {
+                                      "Bd7": {
+                                        "OOO": {
+                                          "Qa5": {
+                                            "Bb3": {
+                                              "Rfc8": {
+                                                "h4": {
+                                                  "ECO": "B79"
+                                                }
+                                              }
+                                            }
+                                          },
+                                          "ECO": "B78"
+                                        }
+                                      },
+                                      "ECO": "B77"
+                                    }
+                                  }
+                                },
+                                "ECO": "B76"
+                              },
+                              "ECO": "B75"
+                            }
+                          },
+                          "ECO": "B72"
+                        },
+                        "ECO": "B70"
+                      },
+                      "e6": {
+                        "g4": {
+                          "ECO": "B81"
+                        },
+                        "f4": {
+                          "ECO": "B82"
+                        },
+                        "Be2": {
+                          "a6": {
+                            "OO": {
+                              "Qc7": {
+                                "f4": {
+                                  "Nc6": {
+                                    "ECO": "B85"
+                                  }
+                                }
+                              }
+                            },
+                            "ECO": "B84"
+                          },
+                          "ECO": "B83"
+                        },
+                        "Bc4": {
+                          "a6": {
+                            "Bb3": {
+                              "b5": {
+                                "ECO": "B87"
+                              }
+                            }
+                          },
+                          "Nc6": {
+                            "Be3": {
+                              "ECO": "B89"
+                            },
+                            "ECO": "B88"
+                          },
+                          "ECO": "B86"
+                        },
+                        "ECO": "B80"
+                      },
+                      "a6": {
+                        "g3": {
+                          "ECO": "B91"
+                        },
+                        "Be2": {
+                          "ECO": "B92"
+                        },
+                        "f4": {
+                          "ECO": "B93"
+                        },
+                        "Bg5": {
+                          "e6": {
+                            "f4": {
+                              "Qb6": {
+                                "ECO": "B97"
+                              },
+                              "Be7": {
+                                "Qf3": {
+                                  "Qc7": {
+                                    "OOO": {
+                                      "Nbd7": {
+                                        "ECO": "B99"
+                                      }
+                                    }
+                                  }
+                                },
+                                "ECO": "B98"
+                              },
+                              "ECO": "B96"
+                            },
+                            "ECO": "B95"
+                          },
+                          "ECO": "B94"
+                        },
+                        "ECO": "B90"
+                      },
+                      "ECO": "B56"
+                    }
+                  },
+                  "ECO": "B54"
+                }
+              }
+            },
+            "ECO": "B50"
+          },
+          "ECO": "B27"
+        },
+        "ECO": "B20"
+      },
+      "e6": {
+        "d4": {
+          "d5": {
+            "exd5": {
+              "exd5": {
+                "Nc3": {
+                  "Nf6": {
+                    "Bg5": {
+                      "ECO": "C01"
+                    }
+                  }
+                }
+              }
+            },
+            "e5": {
+              "ECO": "C02"
+            },
+            "Nd2": {
+              "Nc6": {
+                "Ngf3": {
+                  "Nf6": {
+                    "ECO": "C04"
+                  }
+                }
+              },
+              "Nf6": {
+                "e5": {
+                  "Nfd7": {
+                    "Bd3": {
+                      "c5": {
+                        "c3": {
+                          "Nc6": {
+                            "Ne2": {
+                              "cxd4": {
+                                "cxd4": {
+                                  "ECO": "C06"
+                                }
+                              }
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                },
+                "ECO": "C05"
+              },
+              "c5": {
+                "exd5": {
+                  "exd5": {
+                    "Ngf3": {
+                      "Nc6": {
+                        "ECO": "C09"
+                      }
+                    },
+                    "ECO": "C08"
+                  }
+                },
+                "ECO": "C07"
+              },
+              "ECO": "C03"
+            },
+            "Nc3": {
+              "Nf6": {
+                "Bg5": {
+                  "Bb4": {
+                    "ECO": "C12"
+                  },
+                  "Be7": {
+                    "e5": {
+                      "Nfd7": {
+                        "Bxe7": {
+                          "Qxe7": {
+                            "ECO": "C14"
+                          }
+                        }
+                      }
+                    },
+                    "ECO": "C13"
+                  }
+                },
+                "ECO": "C11"
+              },
+              "Bb4": {
+                "e5": {
+                  "c5": {
+                    "a3": {
+                      "Bxc3": {
+                        "bxc3": {
+                          "Ne7": {
+                            "ECO": "C19"
+                          },
+                          "ECO": "C18"
+                        }
+                      }
+                    },
+                    "ECO": "C17"
+                  },
+                  "ECO": "C16"
+                },
+                "ECO": "C15"
+              },
+              "ECO": "C10"
+            }
+          }
+        },
+        "ECO": "C00"
+      },
+      "e5": {
+        "d4": {
+          "exd4": {
+            "Qxd4": {
+              "Nc6": {
+                "ECO": "C22"
+              }
+            },
+            "ECO": "C21"
+          }
+        },
+        "Bc4": {
+          "Nf6": {
+            "ECO": "C24"
+          },
+          "ECO": "C23"
+        },
+        "Nc3": {
+          "Nf6": {
+            "Bc4": {
+              "Nxe4": {
+                "ECO": "C27"
+              },
+              "Nc6": {
+                "ECO": "C28"
+              }
+            },
+            "f4": {
+              "ECO": "C29"
+            },
+            "ECO": "C26"
+          },
+          "ECO": "C25"
+        },
+        "f4": {
+          "d5": {
+            "exd5": {
+              "e4": {
+                "d3": {
+                  "Nf6": {
+                    "ECO": "C32"
+                  }
+                }
+              }
+            },
+            "ECO": "C31"
+          },
+          "exf4": {
+            "Nf3": {
+              "Be7": {
+                "ECO": "C35"
+              },
+              "d5": {
+                "ECO": "C36"
+              },
+              "g5": {
+                "Nc3": {
+                  "ECO": "C37"
+                },
+                "Bc4": {
+                  "Bg7": {
+                    "ECO": "C38"
+                  }
+                },
+                "h4": {
+                  "ECO": "C39"
+                }
+              },
+              "ECO": "C34"
+            },
+            "ECO": "C33"
+          },
+          "ECO": "C30"
+        },
+        "Nf3": {
+          "d6": {
+            "ECO": "C41"
+          },
+          "Nf6": {
+            "d4": {
+              "exd4": {
+                "e5": {
+                  "Ne4": {
+                    "Qxd4": {
+                      "ECO": "C43"
+                    }
+                  }
+                }
+              }
+            },
+            "ECO": "C42"
+          },
+          "Nc6": {
+            "d4": {
+              "exd4": {
+                "Nxd4": {
+                  "ECO": "C45"
+                }
+              }
+            },
+            "Nc3": {
+              "Nf6": {
+                "Bb5": {
+                  "Bb4": {
+                    "ECO": "C49"
+                  },
+                  "ECO": "C48"
+                },
+                "ECO": "C47"
+              },
+              "ECO": "C46"
+            },
+            "Bc4": {
+              "Bc5": {
+                "b4": {
+                  "Bxb4": {
+                    "c3": {
+                      "Ba5": {
+                        "ECO": "C52"
+                      }
+                    }
+                  },
+                  "ECO": "C51"
+                },
+                "c3": {
+                  "Nf6": {
+                    "d4": {
+                      "exd4": {
+                        "cxd4": {
+                          "ECO": "C54"
+                        }
+                      }
+                    }
+                  },
+                  "ECO": "C53"
+                },
+                "ECO": "C50"
+              },
+              "Nf6": {
+                "d4": {
+                  "exd4": {
+                    "OO": {
+                      "Nxe4": {
+                        "ECO": "C56"
+                      }
+                    }
+                  }
+                },
+                "Ng5": {
+                  "d5": {
+                    "exd5": {
+                      "Na5": {
+                        "Bb5": {
+                          "c6": {
+                            "dxc6": {
+                              "bxc6": {
+                                "Be2": {
+                                  "h6": {
+                                    "ECO": "C59"
+                                  }
+                                }
+                              }
+                            }
+                          }
+                        },
+                        "ECO": "C58"
+                      }
+                    }
+                  },
+                  "ECO": "C57"
+                },
+                "ECO": "C55"
+              }
+            },
+            "Bb5": {
+              "Nd4": {
+                "ECO": "C61"
+              },
+              "d6": {
+                "ECO": "C62"
+              },
+              "f5": {
+                "ECO": "C63"
+              },
+              "Bc5": {
+                "ECO": "C64"
+              },
+              "Nf6": {
+                "OO": {
+                  "d6": {
+                    "ECO": "C66"
+                  },
+                  "Nxe4": {
+                    "ECO": "C67"
+                  }
+                },
+                "ECO": "C65"
+              },
+              "a6": {
+                "Bxc6": {
+                  "dc": {
+                    "OO": {
+                      "f6": {
+                        "d4": {
+                          "ECO": "C69"
+                        }
+                      }
+                    }
+                  },
+                  "ECO": "C68"
+                },
+                "Ba4": {
+                  "d6": {
+                    "OO": {
+                      "ECO": "C72"
+                    },
+                    "Bxc6": {
+                      "bxc6": {
+                        "d4": {
+                          "ECO": "C73"
+                        }
+                      }
+                    },
+                    "c3": {
+                      "Bd7": {
+                        "d4": {
+                          "g6": {
+                            "ECO": "C76"
+                          }
+                        },
+                        "ECO": "C75"
+                      },
+                      "ECO": "C74"
+                    },
+                    "ECO": "C71"
+                  },
+                  "Nf6": {
+                    "OO": {
+                      "d6": {
+                        "ECO": "C79"
+                      },
+                      "Nxe4": {
+                        "d4": {
+                          "b5": {
+                            "Bb3": {
+                              "d5": {
+                                "dxe5": {
+                                  "Be6": {
+                                    "c3": {
+                                      "ECO": "C82"
+                                    },
+                                    "ECO": "C83"
+                                  }
+                                }
+                              }
+                            }
+                          }
+                        },
+                        "ECO": "C80"
+                      },
+                      "Be7": {
+                        "Bxc6": {
+                          "dxc6": {
+                            "ECO": "C85"
+                          }
+                        },
+                        "Qe2": {
+                          "ECO": "C86"
+                        },
+                        "Re1": {
+                          "d6": {
+                            "ECO": "C87"
+                          },
+                          "b5": {
+                            "Bb3": {
+                              "OO": {
+                                "c3": {
+                                  "d5": {
+                                    "ECO": "C89"
+                                  },
+                                  "d6": {
+                                    "d4": {
+                                      "ECO": "C91"
+                                    },
+                                    "h3": {
+                                      "h6": {
+                                        "ECO": "C93"
+                                      },
+                                      "Nb8": {
+                                        "d4": {
+                                          "ECO": "C95"
+                                        },
+                                        "ECO": "C94"
+                                      },
+                                      "Na5": {
+                                        "Bc2": {
+                                          "c5": {
+                                            "d4": {
+                                              "Qc7": {
+                                                "Nbd2": {
+                                                  "Nc6": {
+                                                    "ECO": "C98"
+                                                  },
+                                                  "cxd4": {
+                                                    "cxd4": {
+                                                      "ECO": "C99"
+                                                    }
+                                                  }
+                                                },
+                                                "ECO": "C97"
+                                              }
+                                            }
+                                          },
+                                          "ECO": "C96"
+                                        }
+                                      },
+                                      "ECO": "C92"
+                                    },
+                                    "ECO": "C90"
+                                  }
+                                }
+                              },
+                              "ECO": "C88"
+                            }
+                          }
+                        },
+                        "ECO": "C84"
+                      },
+                      "ECO": "C78"
+                    },
+                    "ECO": "C77"
+                  },
+                  "ECO": "C70"
+                }
+              },
+              "ECO": "C60"
+            },
+            "ECO": "C44"
+          },
+          "ECO": "C40"
+        },
+        "ECO": "C20"
+      },
+      "ECO": "B00"
+    },
+    "ECO": ""
+  }
 }
 
-
-function getEco(x){
-if("ECO" in x)return x["ECO"]
-if(!("ECO" in x)&&Object.keys(x).length==1)return getEco(x[Object.keys(x)[0]])
-
+function getEco(x) {
+  if("ECO" in x) return x["ECO"]
+  if(!("ECO" in x) && Object.keys(x).length == 1) return getEco(x[Object.keys(x)[0]])
+}
+var ECOS = {
+  "A": "0",
+  "B": "1",
+  "C": "2"
 }
 
-function expandMove(x){
-for(var i=0;i<E[C].length;i++){
-var piece=E[C][i]
-for(var ii=0;ii<Q[piece].length;ii++){
-for(var iii=1;iii<8;iii++){
-if(i>2&&iii>1)continue
-var p=a[C][i][0]
-var q=a[C][i][1]
-var A=p+Q[piece][ii][0]*iii
-var B=q+Q[piece][ii][1]*iii
-
-var result = "RQBNK  ".charAt(piece) + "abcdefgh".charAt(q)
-if(A>7||A<0||B<0||B>7)continue
-if(piece>4&&O[1-C][A][B]!=-1&&B==q)continue
-if(piece>4&&O[1-C][A][B]==-1&&B!=q)continue
-  var ch=""
-  if(O[1-C][A][B]!=-1){if (piece<5){ch="x"}else{ch="abcdefgh".charAt(q)+"x"}}
-  var simpleMove=(result.charAt(0)+ch+"abcdefgh".charAt(B) + (A + 1).toString()).replace(/\ /g,"")
-if(simpleMove==x)return [i,ii,iii]
-}}}
-return false
+function expandMove(x) {
+  for(var i = 0; i < E[C].length; i++) {
+    var piece = E[C][i]
+    for(var ii = 0; ii < Q[piece].length; ii++) {
+      for(var iii = 1; iii < 8; iii++) {
+        if(i > 2 && iii > 1) continue
+        var p = a[C][i][0]
+        var q = a[C][i][1]
+        var A = p + Q[piece][ii][0] * iii
+        var B = q + Q[piece][ii][1] * iii
+        var result = "RQBNK  ".charAt(piece) + "abcdefgh".charAt(q)
+        if(A > 7 || A < 0 || B < 0 || B > 7) continue
+        if(piece > 4 && O[1 - C][A][B] != -1 && B == q) continue
+        if(piece > 4 && O[1 - C][A][B] == -1 && B != q) continue
+        var ch = ""
+        if(O[1 - C][A][B] != -1) {
+          if(piece < 5) {
+            ch = "x"
+          } else {
+            ch = "abcdefgh".charAt(q) + "x"
+          }
+        }
+        var simpleMove = (result.charAt(0) + ch + "abcdefgh".charAt(B) + (A + 1).toString()).replace(/\ /g, "")
+        if(simpleMove == x) return [i, ii, iii]
+      }
+    }
+  }
+  return false
 }
-
 document.getElementById("pgn").value = pgn.replace(/\ +/g, " ")
 makea()
 showHTML()
