@@ -39,11 +39,6 @@ Start from optional Fen string (should increase half-ply for puzzles): <input id
   <input type="button"  value="&#8593" style="position:relative;top:-10px"   onClick="randomReward=parseFloat(randomReward)+.001;document.getElementById('random').value=randomReward"><br>
   <input type="button" value="&#8609" style="position:relative;top:-10px" onClick="randomReward=(randomReward-.001).toFixed(3);document.getElementById('random').value=randomReward">
 </div>
-<span style="float:left">&nbsp; stalemate multiplier</span> <input style="float:left;width:36px" id="stalemate" value="-0.1">
-<div style="float:left">
-  <input type="button"  value="&#8593" style="position:relative;top:-10px"   onClick="stalemateReward=parseFloat(stalemateReward)+.1;document.getElementById('stalemate').value=stalemateReward"><br>
-  <input type="button" value="&#8609" style="position:relative;top:-10px" onClick="stalemateReward=(stalemateReward-.1).toFixed(3);document.getElementById('stalemate').value=stalemateReward">
-</div>
 
 </div>
 <div style="height:50px"></div>
@@ -84,7 +79,7 @@ function P(C, l, b) {
 }
 
 function stalemateMod(m) {
-  if(depth >= 4 && m < -5000 && mate(1 - C) && !check(1 - C)) return Math.floor(m * stalemateReward)
+  if(depth >= 4 && m < -5000 && mate(1 - C) && !check(1 - C)) return 0
   return m
 }
 if(typeof(ontouchstart) != "undefined") window.location.href = "chessMobile.html"
@@ -92,7 +87,6 @@ var computerPlaysBlack = true
 var pruning = true
 var gameOver = false
 var pawnReward = 0.02
-var stalemateReward = -0.1
 var castleReward = 4
 var randomReward = .03
 var firstMoveReward = .1
@@ -337,7 +331,7 @@ function move(C, i, ii, iii) {
   a[C][i][0] = MA
   a[C][i][1] = MB
   O[C][Mp][Mq] = -1
-  if(Mpiece > 0 && Mpiece < 4 && (Mp == C * 7 || MA == C * 7)) MscoreChange += firstMoveReward * Z[Mpiece] * (MA - Mp) * (1 - 2 * C)
+  if(Mpiece > 0 && Mpiece < 4 && Mp == C * 7 &&MA!=C*7&&castleFlags[Mq]!=0) MscoreChange += firstMoveReward * Z[Mpiece]// * (MA - Mp) * (1 - 2 * C)
   Msave = O[1 - C][MA][MB]
   MoldPromoted = promoted
   promoted = -1
@@ -541,7 +535,7 @@ function go2() {
   if(check(C)) {
     gameOver = true;
     pgn += " {resigns} " + (C).toString() + "-" + (1 - C).toString() + " ";
-    document.getElementById("pgn").value = ecoDescription() + "\n" + pgn
+    document.getElementById("pgn").value = ecoDescription() + "\n" + pgn.replace(/\ +/g," ")
     document.getElementById("pgn").scrollTop = document.getElementById("pgn").scrollHeight
     return
   } //minimax recommends move into check, player C resigns
@@ -650,7 +644,7 @@ function showHTML() {
       document.getElementById("board").appendChild(square)
     }
   }
-  busy = false
+  setTimeout("busy = false", 100)
 }
 var pickupi, pickupj, pickupC
 document.getElementById("board").onmouseup = function(e) {
@@ -758,6 +752,7 @@ function P1() {
   pgn =
     "[White \"Person\"]\n[Black \"Computer\"]\n"
   index = 0
+baseScore=0
   var returnState = true
   for(var i = 0; i < moveList.length; i++) {
     makea()
@@ -777,7 +772,6 @@ function P1() {
   }
   document.getElementById("pgn").value = ecoDescription() + "\n" + pgn.replace(/\ +/g, " ")
   showHTML()
-  baseScore = 0 // We have not bothered to recalculate it
   if(!returnState) return false
   // now modified to choose with likelihood according to number of follow-on moves
   //(array rr contains i as many times as there are corresponding follow-ons)
@@ -3128,7 +3122,8 @@ var columns = {
 var ECOS = {
   "A": "0",
   "B": "1",
-  "C": "2"
+  "C": "2",
+  "D": "3"
 }
 var fen = ""
 
@@ -3197,10 +3192,14 @@ function fenToArray(xx) {
     index++;
     pgn += "1... "
   }
-  document.getElementById("pgn").value = ecoDescription() + "\n" + pgn.replace(/\ \ /g, "")
+  document.getElementById("pgn").value = ecoDescription() + "\n" + pgn.replace(/\ +/g, " ")
   makea();
   showHTML()
   gameOver = false
+
+  baseScore=0
+  for(var i=0;i<E[0].length;i++)baseScore+=Z[E[0][i]]
+  for(var i=0;i<E[1].length;i++)baseScore+=-Z[E[1][i]]
   return true
 }
 
@@ -3209,7 +3208,7 @@ function expandMove(x) {
     var piece = E[C][i]
     for(var ii = 0; ii < Q[piece].length; ii++) {
       for(var iii = 1; iii < 8; iii++) {
-        if(i > 2 && iii > 1) continue
+        if(piece > 2 && iii > 1) continue
         var p = a[C][i][0]
         var q = a[C][i][1]
         var A = p + Q[piece][ii][0] * iii
