@@ -59,7 +59,7 @@ function P(C, l, b) {
 var moveList = []
 
 function stalemateMod(m) {
-  if(depth >= 4 && m < -5000 && mate(1 - C) && !check(1 - C)) return Math.floor(m * stalemateReward)
+  if(depth >= 4 && m < -5000 && mate(1 - C) && !check(1 - C)) return 0
   return m
 }
 
@@ -234,7 +234,7 @@ function move(C, i, ii, iii) {
   a[C][i][0] = MA
   a[C][i][1] = MB
   O[C][Mp][Mq] = -1
-  if(Mpiece > 0 && Mpiece < 4 && (Mp == C * 7 || MA == C * 7)) MscoreChange += firstMoveReward * Z[Mpiece] * (MA - Mp) * (1 - 2 * C)
+  if(Mpiece > 0 && Mpiece < 4 && Mp == C * 7 &&MA!=C*7&&castleFlags[Mq]!=0) MscoreChange += firstMoveReward * Z[Mpiece]// * (MA - Mp) * (1 - 2 * C)
   Msave = O[1 - C][MA][MB]
   MoldPromoted = promoted
   promoted = -1
@@ -441,7 +441,7 @@ function go2() {
   if(check(C)) {
     gameOver = true;
     pgn += " {resigns} " + (C).toString() + "-" + (1 - C).toString() + " ";
-    document.getElementById("pgn").value = ecoDescription() + "\n" + pgn
+    document.getElementById("pgn").value = ecoDescription() + "\n" + pgn.replace(/ +/g," ")
     document.getElementById("pgn").scrollTop = document.getElementById("pgn").scrollHeight
     return
   } //minimax recommends move into check, player C resigns
@@ -544,7 +544,7 @@ function showHTML() {
       document.getElementById("board").appendChild(square)
     }
   }
-  busy = false
+  setTimeout("busy = false", 100)
 }
 var pickupi, pickupj, pickupC
 document.getElementById("board").ontouchend = document.getElementById("board").onmouseup = function(e) {
@@ -649,6 +649,7 @@ function P1() {
   pgn =
     "[White \"Person\"]\n[Black \"Computer\"]\n"
   index = 0
+  baseScore=0
   var returnState = true
   for(var i = 0; i < moveList.length; i++) {
     makea()
@@ -662,7 +663,6 @@ function P1() {
   }
   document.getElementById("pgn").value = ecoDescription() + "\n" + pgn.replace(/\ +/g, " ")
   showHTML()
-  baseScore = 0 // We have not bothered to recalculate it
   if(!returnState) return false
   // now modified to choose with likelihood according to number of follow-on moves
   //(array rr contains i as many times as there are corresponding follow-ons)
@@ -2978,7 +2978,8 @@ function getEco(x) {
 var ECOS = {
   "A": "0",
   "B": "1",
-  "C": "2"
+  "C": "2",
+  "D": "3"
 }
 
 function expandMove(x) {
@@ -2986,7 +2987,7 @@ function expandMove(x) {
     var piece = E[C][i]
     for(var ii = 0; ii < Q[piece].length; ii++) {
       for(var iii = 1; iii < 8; iii++) {
-        if(i > 2 && iii > 1) continue
+        if(piece > 2 && iii > 1) continue
         var p = a[C][i][0]
         var q = a[C][i][1]
         var A = p + Q[piece][ii][0] * iii
