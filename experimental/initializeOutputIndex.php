@@ -1,0 +1,9 @@
+<?php
+$abs=realpath(dirname(__FILE__));
+$index=$_GET['index'];
+$indices=file_get_contents($abs."/indices.txt");
+$indexArray=explode(",",$indices);
+$indexArray[$index]="buf-1";
+$t=implode(",",$indexArray);
+file_put_contents($abs."/indices.txt",$t);
+?>
