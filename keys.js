@@ -50,7 +50,7 @@ if(key=="13"){e.preventDefault();nextt2(aNumber);return false}
 function configKeyUp(e){
 e=(window.event)?event:e
  var key=(e.keyCode)?e.keyCode:e.charCode;
-if(key=="13"){e.preventDefault();="clearr();doingOne=true;document.getElementById('dofine').checked=true;document.getElementById('finecorrect').checked=true;doConfig(econfig,ionn,0);
+if(key=="13"){e.preventDefault();clearr();doingOne=true;document.getElementById('dofine').checked=true;document.getElementById('finecorrect').checked=true;doConfig(econfig,ionn,0);
 return false}
 }
 
