@@ -37,9 +37,21 @@ if(key=="38"){upDown=false; e.preventDefault();return false}
 if(key=="40"){downDown=false; e.preventDefault();return false}
 if(key=="37"){leftDown=false;e.preventDefault();return false}
 if(key=="39"){rightDown=false;e.preventDefault();return false}
-if(key=="13"){nextt2(aNumber)}
+}
 
- }
+
+
+function numberKeyUp(e){
+e=(window.event)?event:e
+ var key=(e.keyCode)?e.keyCode:e.charCode;
+if(key=="13"){e.preventDefault();nextt2(aNumber);return false}
+}
+
+function configKeyUp(e){
+e=(window.event)?event:e
+ var key=(e.keyCode)?e.keyCode:e.charCode;
+if(key=="13"){e.preventDefault();nextt(aNumber);return false}
+}
 
 document.onkeydown=keydown
 document.onkeyup=keyup
