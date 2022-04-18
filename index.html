@@ -608,5 +608,9 @@ The arrow keys are for looking closer, and 'compare external' compares with what
 </div></div>
 
 </body>
+<script>
+document.getElementById("electronConfiguration").onkeyup=function(e){if(e.keyCode!=13)return
+document.getElementById("fromConfig").onclick();e.stopPropagation()}
+</script>
 
 </html>
