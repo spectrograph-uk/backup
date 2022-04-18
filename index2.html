@@ -542,7 +542,7 @@ value=0>
 
 
 
-<input style="float:left;display:inline;" type="button" onClick="clearr();doingOne=true;document.getElementById('dofine').checked=true;document.getElementById('finecorrect').checked=true;doConfig(econfig,ionn,0)" value="from config">
+<input style="float:left;display:inline;" id="fromConfig" type="button" onClick="clearr();doingOne=true;document.getElementById('dofine').checked=true;document.getElementById('finecorrect').checked=true;doConfig(econfig,ionn,0)" value="from config">
 
 <input style="float:left;display:inline;" type="button" onClick="if(waiting){window.location.href='index2.html'};firstPass=true;document.getElementById('dofine').checked=false;document.getElementById('finecorrect').checked=false;fmult=1;clearr()" value="clear">
 <input style="float:left;display:inline;" 
@@ -657,4 +657,8 @@ The arrow keys are for looking closer, and 'compare external' compares with what
 
 </body>
 
+<script>
+document.getElementById("electronConfiguration").onkeyup=function(e){if(e.keyCode!=13)return
+document.getElementById("fromConfig").onclick();e.stopPropagation()}
+</script>
 </html>
