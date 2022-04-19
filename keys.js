@@ -40,7 +40,7 @@ if(key=="39"){rightDown=false;e.preventDefault();return false}
 if(key=="13"){nextt2(aNumber)}
 }
 
- }
+ 
 
 document.onkeydown=keydown
 document.onkeyup=keyup
