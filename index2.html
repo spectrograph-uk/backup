@@ -527,7 +527,7 @@ onChange="clearr();aNumber=parseInt(this.value);if(document.getElementById('usep
 value=0>
 </div>
 <div style="float:left;display:inline"  > <div style="font-size:8px" >&nbsp;&nbsp;ion</div>
-<input id="ionization" style="width:25px;display:inline-block" onChange="ionn=parseFloat(this.value)" value=1>
+<input id="ionization" style="width:25px;display:inline-block" onChange="ionn=parseInt(this.value);if(ionn==0)ionn=1" value=1>
 </div>
 <div style="float:left;display:inline"  ><div style="font-size:8px" >elec configs (separate by semicolons)</div>
 <input id="electronConfiguration" style="display:inline-block;width:120px;direction:rtl" onChange="econfig=this.value">
