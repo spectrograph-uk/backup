@@ -482,7 +482,7 @@ if(dofine.checked==true)domults.checked=true
 
 
 function rr2(){
-document.body.style.paddingLeft=((window.innerWidth-1300)/2).toString()+"px"
+document.body.style.paddingLeft=((window.innerWidth-1400)/2).toString()+"px"
 
 document.getElementById("blockingDiv").style.left=(document.getElementById("helpButton").offsetLeft+document.getElementById("helpButton").offsetWidth).toString()+"px"
 document.getElementById("blockingDiv").style.height=document.getElementById("helpButton").offsetHeight.toString()+"px"
@@ -661,5 +661,8 @@ The arrow keys are for looking closer, and 'compare external' compares with what
 <script>
 document.getElementById("electronConfiguration").onkeyup=function(e){if(e.keyCode!=13)return
 document.getElementById("fromConfig").onclick();e.stopPropagation()}
+document.getElementById("atomicNumber").onkeyup=function(e){if(e.keyCode!=13)return
+nextt2(aNumber);e.stopPropogation()}
+
 </script>
 </html>
