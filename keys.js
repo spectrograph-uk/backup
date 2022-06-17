@@ -37,7 +37,7 @@ if(key=="38"){upDown=false; e.preventDefault();return false}
 if(key=="40"){downDown=false; e.preventDefault();return false}
 if(key=="37"){leftDown=false;e.preventDefault();return false}
 if(key=="39"){rightDown=false;e.preventDefault();return false}
-if(key=="13"){nextt2(aNumber)}
+//if(key=="13"){nextt2(aNumber)}
 }
 
  
