@@ -1389,7 +1389,7 @@ for(var i=0;i<a.length;i++){
 
 
     var max
-    if(i==0||d[i]!=d[i-1]){max=b[i]}else{max=output[j][i-1]}
+    if(i==0||d[i]!=d[i-1]){max=b[i]}else{max=output[j][i-1];if(max>b[i])max=b[i]}
 
     for(var k=a[i];k<=max;k++){
 
